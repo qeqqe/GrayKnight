@@ -35,12 +35,15 @@ import { useAuth } from "@/providers/AuthProvider";
 export default function DashboardPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [lastfmUser, setLastfmUser] = useState<any>(null);
   const { logout } = useAuth();
 
   useEffect(() => {
     const checkLastFmStatus = async () => {
       try {
         const token = localStorage.getItem("token");
+        if (!token) return;
+
         const response = await fetch(
           "http://localhost:3001/api/lastfm/status",
           {
@@ -52,30 +55,48 @@ export default function DashboardPage() {
         const data = await response.json();
         setIsConnected(data.connected);
         setDebugInfo(data);
+        if (data.connected) {
+          setLastfmUser(data.userInfo);
+        }
       } catch (error) {
         console.error("Failed to check Last.fm status:", error);
       }
     };
 
-    // Check status on mount and when URL has success parameter
+    checkLastFmStatus();
+    // Check again if we were redirected back from Last.fm
     if (window.location.search.includes("success=true")) {
       checkLastFmStatus();
     }
   }, []);
 
   const handleLastFmConnect = () => {
-    const token = localStorage.getItem("token"); // or however you store your JWT
-    window.location.href = `http://localhost:3001/auth/lastfm`;
-
-    // Alternative using fetch:
-    // fetch('http://localhost:3001/auth/lastfm', {
-    //   headers: {
-    //     'Authorization': `Bearer ${token}`
-    //   }
-    // }).then(response => {
-    //   window.location.href = response.url;
-    // });
+    // Simple redirect without any token handling
+    window.location.href = "http://localhost:3001/auth/lastfm";
   };
+
+  useEffect(() => {
+    // Handle Last.fm callback
+    const params = new URLSearchParams(window.location.search);
+    const sessionKey = params.get("sessionKey");
+
+    if (sessionKey) {
+      const token = localStorage.getItem("token");
+      // Save Last.fm session key to user account
+      fetch("http://localhost:3001/api/lastfm/save-session", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sessionKey }),
+      })
+        .then(() => {
+          setIsConnected(true);
+        })
+        .catch(console.error);
+    }
+  }, []);
 
   return (
     <div className="h-screen bg-background">
@@ -126,15 +147,34 @@ export default function DashboardPage() {
       </div>
 
       <main className="container p-4 md:p-8 space-y-8">
-        {debugInfo && (
-          <Card className="mb-4 bg-muted">
+        {lastfmUser && (
+          <Card>
             <CardHeader>
-              <CardTitle>Debug Information</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <SiLastdotfm size={20} />
+                Last.fm Profile
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="text-sm overflow-auto p-4">
-                {JSON.stringify(debugInfo, null, 2)}
-              </pre>
+              <div className="flex flex-col gap-2">
+                <p className="text-lg font-medium">{lastfmUser.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Total Scrobbles: {lastfmUser.playcount}
+                </p>
+                {lastfmUser.country && (
+                  <p className="text-sm text-muted-foreground">
+                    Country: {lastfmUser.country}
+                  </p>
+                )}
+                <a
+                  href={lastfmUser.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-500 hover:underline"
+                >
+                  View Profile
+                </a>
+              </div>
             </CardContent>
           </Card>
         )}

@@ -8,7 +8,19 @@ const dotenv = require("dotenv");
 const User = require("./model/User");
 const rateLimit = require("express-rate-limit");
 const passport = require("./components/FMoauth");
+const session = require("express-session");
+const crypto = require("crypto");
 dotenv.config();
+
+// Debug log for JWT_SECRET
+console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
+
+// Make sure JWT_SECRET is loaded properly
+if (!process.env.JWT_SECRET) {
+  console.error("JWT_SECRET is not defined in environment variables!");
+  process.exit(1);
+}
+
 const JWT_SECRET = process.env.JWT_SECRET;
 const app = express();
 const port = process.env.PORT || 3001;
@@ -17,6 +29,15 @@ const ConnectDB = require("./components/ConnectDB");
 app.use(cors());
 app.use(bodyParser.json());
 app.use(passport.initialize());
+
+app.use(
+  session({
+    secret: JWT_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: process.env.NODE_ENV === "production" },
+  })
+);
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -111,16 +132,23 @@ app.post("/login", loginLimiter, async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // Debug log before token generation
+    console.log("Creating token with secret length:", JWT_SECRET.length);
+
     const accessToken = jwt.sign(
       {
         userId: user._id,
         email: user.email,
         username: user.username,
-        iat: Date.now(),
       },
       JWT_SECRET,
-      { expiresIn: "500h" }
+      {
+        expiresIn: "500h",
+        algorithm: "HS256", // Explicitly set algorithm
+      }
     );
+
+    console.log("Token generated successfully, length:", accessToken.length);
 
     return res.status(200).json({
       accessToken,
@@ -139,67 +167,98 @@ app.post("/login", loginLimiter, async (req, res) => {
   }
 });
 
-app.get("/auth/lastfm", verifyToken, (req, res, next) => {
-  // Store user ID in session
-  req.authInfo = { userId: req.user.userId };
-  passport.authenticate("lastfm")(req, res, next);
+// Simplified Last.fm routes
+app.get("/auth/lastfm", (req, res) => {
+  // Direct Last.fm auth - as simple as possible
+  const authUrl = `http://www.last.fm/api/auth/?api_key=${process.env.LASTFM_API_KEY}&cb=${process.env.LASTFM_CALLBACK_URL}`;
+  res.redirect(authUrl);
 });
 
-app.get("/auth/lastfm/callback", (req, res, next) => {
-  passport.authenticate("lastfm", async (err, sessionKey) => {
-    if (err) {
-      console.error("Last.fm auth error:", err);
-      return res.redirect(
-        `${process.env.CLIENT_URL}/dashboard?error=auth_failed`
-      );
+app.get("/auth/lastfm/callback", async (req, res) => {
+  const token = req.query.token;
+  console.log("Last.fm callback params:", req.query);
+
+  try {
+    // Generate API signature
+    const params = {
+      api_key: process.env.LASTFM_API_KEY,
+      method: "auth.getSession",
+      token: token,
+    };
+
+    // Sort params alphabetically
+    const sortedParams = Object.keys(params)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = params[key];
+        return acc;
+      }, {});
+
+    // Create signature string
+    let sigString = "";
+    Object.keys(sortedParams).forEach((key) => {
+      sigString += key + params[key];
+    });
+    sigString += process.env.LASTFM_SECRET;
+
+    // Create MD5 hash
+    const apiSig = crypto.createHash("md5").update(sigString).digest("hex");
+
+    // Make API request with signature
+    const response = await fetch(
+      `http://ws.audioscrobbler.com/2.0/?method=auth.getSession&api_key=${process.env.LASTFM_API_KEY}&token=${token}&api_sig=${apiSig}&format=json`
+    );
+
+    const data = await response.json();
+    console.log("Last.fm session data:", data);
+
+    if (data.session) {
+      // Store session info in database here later
+      console.log("Got Last.fm session key:", data.session.key);
+      console.log("Got Last.fm username:", data.session.name);
     }
 
-    try {
-      // Get the original user ID from the auth token in the header
-      const authHeader = req.headers.authorization;
-      const token = authHeader && authHeader.split(" ")[1];
-      let userId;
-
-      if (token) {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        userId = decoded.userId;
-      }
-
-      if (!userId) {
-        console.error("No user ID found");
-        return res.redirect(
-          `${process.env.CLIENT_URL}/dashboard?error=no_user`
-        );
-      }
-
-      // Update user with Last.fm credentials
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.redirect(
-          `${process.env.CLIENT_URL}/dashboard?error=user_not_found`
-        );
-      }
-
-      // Update user's Last.fm tokens
-      if (!user.tokens) user.tokens = [];
-      user.tokens.push({
-        type: "lastfm",
-        username: sessionKey.username,
-        key: sessionKey.key,
-      });
-      user.lastfm = sessionKey.key;
-
-      await user.save();
-      return res.redirect(`${process.env.CLIENT_URL}/dashboard?success=true`);
-    } catch (error) {
-      console.error("Error saving Last.fm token:", error);
-      return res.redirect(
-        `${process.env.CLIENT_URL}/dashboard?error=save_failed`
-      );
-    }
-  })(req, res, next);
+    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+  } catch (error) {
+    console.error("Error getting Last.fm session:", error);
+    res.redirect(`${process.env.CLIENT_URL}/dashboard?error=session_failed`);
+  }
 });
 
+app.get("/api/lastfm/status", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ connected: false });
+    }
+
+    const lastfmToken = user.tokens.find((t) => t.type === "lastfm");
+    if (!lastfmToken) {
+      return res.json({ connected: false });
+    }
+
+    // Get Last.fm user info
+    const lastfmInfo = await fetch(
+      `http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${lastfmToken.username}&api_key=${process.env.LASTFM_API_KEY}&format=json`
+    ).then((r) => r.json());
+
+    return res.json({
+      connected: true,
+      username: lastfmToken.username,
+      userInfo: {
+        name: lastfmInfo.user?.name,
+        url: lastfmInfo.user?.url,
+        playcount: lastfmInfo.user?.playcount,
+        country: lastfmInfo.user?.country,
+      },
+    });
+  } catch (error) {
+    console.error("Status check error:", error);
+    return res.status(500).json({ connected: false });
+  }
+});
+
+// Keep JWT auth only for user-specific API endpoints
 app.get("/api/lastfm/status", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -208,7 +267,6 @@ app.get("/api/lastfm/status", verifyToken, async (req, res) => {
         .status(404)
         .json({ connected: false, message: "User not found" });
     }
-
     const lastfmToken = user.tokens.find((t) => t.type === "lastfm");
     return res.json({
       connected: !!lastfmToken,
@@ -225,6 +283,31 @@ app.get("/api/lastfm/status", verifyToken, async (req, res) => {
     return res
       .status(500)
       .json({ connected: false, error: "Internal server error" });
+  }
+});
+
+// Add this new endpoint
+app.post("/api/lastfm/save-session", verifyToken, async (req, res) => {
+  try {
+    const { sessionKey } = req.body;
+    const user = await User.findById(req.user.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.tokens) user.tokens = [];
+    user.tokens.push({
+      type: "lastfm",
+      key: sessionKey,
+    });
+    user.lastfm = sessionKey;
+
+    await user.save();
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error saving Last.fm session:", error);
+    res.status(500).json({ message: "Failed to save Last.fm session" });
   }
 });
 

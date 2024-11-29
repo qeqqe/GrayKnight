@@ -17,7 +17,6 @@ passport.use(
       passReqToCallback: true,
     },
     (req, sessionKey, done) => {
-      // Just pass the session key through
       return done(null, sessionKey);
     }
   )
