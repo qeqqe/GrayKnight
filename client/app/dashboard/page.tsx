@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [recentTracks, setRecentTracks] = useState<any[]>([]);
   const [userTopArtists, setUserTopArtists] = useState<any[]>([]);
   const [userTopTracks, setUserTopTracks] = useState<any[]>([]);
+  const [tracksPeriod, setTracksPeriod] = useState<string>("7day");
 
   const handleLastFmConnect = () => {
     const token = localStorage.getItem("token");
@@ -209,7 +210,7 @@ export default function DashboardPage() {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch(
-          "http://localhost:3001/api/lastfm/user/top-tracks",
+          `http://localhost:3001/api/lastfm/user/top-tracks?period=${tracksPeriod}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -222,7 +223,7 @@ export default function DashboardPage() {
     };
 
     fetchUserTopTracks();
-  }, [isConnected]);
+  }, [isConnected, tracksPeriod]);
 
   useEffect(() => {
     return () => {
@@ -393,6 +394,77 @@ export default function DashboardPage() {
       </Card>
     );
   };
+
+  const tracksContent = (
+    <TabsContent value="tracks">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Top Tracks</CardTitle>
+              <CardDescription>Your most played tracks</CardDescription>
+            </div>
+            <select
+              value={tracksPeriod}
+              onChange={(e) => setTracksPeriod(e.target.value)}
+              className="p-2 rounded-md border bg-background"
+            >
+              <option value="7day">Last 7 Days</option>
+              <option value="1month">Last Month</option>
+              <option value="3month">Last 3 Months</option>
+              <option value="6month">Last 6 Months</option>
+              <option value="12month">Last Year</option>
+              <option value="overall">All Time</option>
+            </select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px] pr-4">
+            {userTopTracks.map((track: any, index: number) => (
+              <div
+                key={`${track.name}-${index}`}
+                className="flex items-center gap-4 py-4 border-b"
+              >
+                <div className="text-2xl font-bold w-8">{index + 1}</div>
+                <Avatar className="h-12 w-12">
+                  <AvatarFallback>
+                    <Music2 className="h-4 w-4" />
+                  </AvatarFallback>
+                  {track.image?.[1]?.["#text"] && (
+                    <img
+                      src={track.image[1]["#text"]}
+                      alt="Album art"
+                      className="object-cover"
+                    />
+                  )}
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{track.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {track.artist.name}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium">
+                    {parseInt(track.playcount).toLocaleString()} plays
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {track.duration
+                      ? `${Math.floor(track.duration / 60)}:${(
+                          track.duration % 60
+                        )
+                          .toString()
+                          .padStart(2, "0")}`
+                      : "N/A"}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  );
 
   return (
     <div className="h-screen bg-background">
@@ -589,49 +661,7 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="tracks">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Tracks</CardTitle>
-                <CardDescription>
-                  Your most played tracks this week
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[400px] pr-4">
-                  {userTopTracks.map((track: any, index: number) => (
-                    <div
-                      key={`${track.name}-${index}`}
-                      className="flex items-center gap-4 py-4 border-b"
-                    >
-                      <div className="text-2xl font-bold w-8">{index + 1}</div>
-                      <Avatar className="h-12 w-12">
-                        <AvatarFallback>
-                          <Music2 className="h-4 w-4" />
-                        </AvatarFallback>
-                        {track.image?.[1]?.["#text"] && (
-                          <img
-                            src={track.image[1]["#text"]}
-                            alt="Album art"
-                            className="object-cover"
-                          />
-                        )}
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium">{track.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {track.artist.name}
-                        </p>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {parseInt(track.playcount).toLocaleString()} plays
-                      </div>
-                    </div>
-                  ))}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {tracksContent}
         </Tabs>
       </main>
     </div>

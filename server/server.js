@@ -390,7 +390,7 @@ app.get("/api/lastfm/status", verifyToken, async (req, res) => {
   }
 });
 
-// Add endpoint for user's top tracks
+// Update endpoint for user's top tracks with period support
 app.get("/api/lastfm/user/top-tracks", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -398,8 +398,10 @@ app.get("/api/lastfm/user/top-tracks", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "User not connected" });
     }
 
+    const period = req.query.period || "7day"; // overall, 12month, 6month, 3month, 1month, 7day
+
     const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=7day`
+      `http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=${period}`
     );
     const data = await response.json();
     res.json(data.toptracks);
