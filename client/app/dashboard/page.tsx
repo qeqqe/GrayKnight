@@ -39,6 +39,9 @@ export default function DashboardPage() {
   const { logout } = useAuth();
   const [topArtists, setTopArtists] = useState<any[]>([]);
   const [currentTrack, setCurrentTrack] = useState<any>(null);
+  const [recentTracks, setRecentTracks] = useState<any[]>([]);
+  const [userTopArtists, setUserTopArtists] = useState<any[]>([]);
+  const [userTopTracks, setUserTopTracks] = useState<any[]>([]);
 
   const handleLastFmConnect = () => {
     const token = localStorage.getItem("token");
@@ -151,6 +154,74 @@ export default function DashboardPage() {
     fetchCurrentTrack();
     const interval = setInterval(fetchCurrentTrack, 30000);
     return () => clearInterval(interval);
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const fetchRecentTracks = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          "http://localhost:3001/api/lastfm/user/recent",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await response.json();
+        setRecentTracks(data.track || []);
+      } catch (error) {
+        console.error("Failed to fetch recent tracks:", error);
+      }
+    };
+
+    fetchRecentTracks();
+    const interval = setInterval(fetchRecentTracks, 30000);
+    return () => clearInterval(interval);
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const fetchUserTopArtists = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          "http://localhost:3001/api/lastfm/user/top-artists",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await response.json();
+        setUserTopArtists(data.artist || []);
+      } catch (error) {
+        console.error("Failed to fetch top artists:", error);
+      }
+    };
+
+    fetchUserTopArtists();
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const fetchUserTopTracks = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          "http://localhost:3001/api/lastfm/user/top-tracks",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await response.json();
+        setUserTopTracks(data.track || []);
+      } catch (error) {
+        console.error("Failed to fetch top tracks:", error);
+      }
+    };
+
+    fetchUserTopTracks();
   }, [isConnected]);
 
   useEffect(() => {
@@ -439,24 +510,40 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px] pr-4">
-                  <div className="flex items-center gap-4 py-4">
-                    <Avatar>
-                      <AvatarFallback>
-                        <Music2 className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        Track Name
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Artist Name
-                      </p>
+                  {recentTracks.map((track: any, index: number) => (
+                    <div
+                      key={`${track.name}-${index}`}
+                      className="flex items-center gap-4 py-4 border-b"
+                    >
+                      <Avatar>
+                        <AvatarFallback>
+                          <Music2 className="h-4 w-4" />
+                        </AvatarFallback>
+                        {track.image?.[1]?.["#text"] && (
+                          <img
+                            src={track.image[1]["#text"]}
+                            alt="Album art"
+                            className="object-cover"
+                          />
+                        )}
+                      </Avatar>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {track.name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {track.artist["#text"]}
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {track["@attr"]?.nowplaying
+                          ? "Now playing"
+                          : new Date(
+                              track.date.uts * 1000
+                            ).toLocaleTimeString()}
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Just now
-                    </div>
-                  </div>
+                  ))}
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -494,6 +581,50 @@ export default function DashboardPage() {
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {parseInt(artist.listeners).toLocaleString()} listeners
+                      </div>
+                    </div>
+                  ))}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="tracks">
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Tracks</CardTitle>
+                <CardDescription>
+                  Your most played tracks this week
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[400px] pr-4">
+                  {userTopTracks.map((track: any, index: number) => (
+                    <div
+                      key={`${track.name}-${index}`}
+                      className="flex items-center gap-4 py-4 border-b"
+                    >
+                      <div className="text-2xl font-bold w-8">{index + 1}</div>
+                      <Avatar className="h-12 w-12">
+                        <AvatarFallback>
+                          <Music2 className="h-4 w-4" />
+                        </AvatarFallback>
+                        {track.image?.[1]?.["#text"] && (
+                          <img
+                            src={track.image[1]["#text"]}
+                            alt="Album art"
+                            className="object-cover"
+                          />
+                        )}
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">{track.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {track.artist.name}
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {parseInt(track.playcount).toLocaleString()} plays
                       </div>
                     </div>
                   ))}

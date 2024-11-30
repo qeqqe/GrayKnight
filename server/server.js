@@ -331,6 +331,42 @@ app.get("/api/lastfm/now-playing", verifyToken, async (req, res) => {
   }
 });
 
+// Add new endpoint for user's top artists
+app.get("/api/lastfm/user/top-artists", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user?.lastfmUsername) {
+      return res.status(404).json({ error: "User not connected" });
+    }
+
+    const response = await fetch(
+      `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=7day`
+    );
+    const data = await response.json();
+    res.json(data.topartists);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch top artists" });
+  }
+});
+
+// Add endpoint for recent scrobbles
+app.get("/api/lastfm/user/recent", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user?.lastfmUsername) {
+      return res.status(404).json({ error: "User not connected" });
+    }
+
+    const response = await fetch(
+      `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=20&extended=1`
+    );
+    const data = await response.json();
+    res.json(data.recenttracks);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch recent tracks" });
+  }
+});
+
 app.get("/api/lastfm/status", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -351,6 +387,24 @@ app.get("/api/lastfm/status", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Status check error:", error);
     return res.status(500).json({ connected: false, error: error.message });
+  }
+});
+
+// Add endpoint for user's top tracks
+app.get("/api/lastfm/user/top-tracks", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user?.lastfmUsername) {
+      return res.status(404).json({ error: "User not connected" });
+    }
+
+    const response = await fetch(
+      `http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=7day`
+    );
+    const data = await response.json();
+    res.json(data.toptracks);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch top tracks" });
   }
 });
 
