@@ -9,6 +9,7 @@ const User = require("./model/User");
 const rateLimit = require("express-rate-limit");
 const session = require("express-session");
 const crypto = require("crypto");
+const lastFmService = require("./services/lastfm");
 dotenv.config();
 
 console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
@@ -163,82 +164,100 @@ app.post("/login", loginLimiter, async (req, res) => {
 });
 
 app.get("/auth/lastfm", (req, res) => {
-  const token = req.query.auth_token;
-  const callbackUrl = `${process.env.LASTFM_CALLBACK_URL}?jwt=${token}`;
+  try {
+    const token = req.query.auth_token;
+    console.log("Starting Last.fm auth with token:", token); // Debug log
 
-  const authUrl = `http://www.last.fm/api/auth/?api_key=${
-    process.env.LASTFM_API_KEY
-  }&cb=${encodeURIComponent(callbackUrl)}`;
-  res.redirect(authUrl);
+    if (!token) {
+      throw new Error("No auth token provided");
+    }
+
+    const callbackUrl = `${process.env.LASTFM_CALLBACK_URL}?jwt=${token}`;
+    console.log("Callback URL:", callbackUrl); // Debug log
+
+    const authUrl = `http://www.last.fm/api/auth/?api_key=${
+      process.env.LASTFM_API_KEY
+    }&cb=${encodeURIComponent(callbackUrl)}`;
+
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error("Auth initialization error:", error);
+    res.redirect(`${process.env.CLIENT_URL}/dashboard?error=auth_init_failed`);
+  }
 });
 
+// Simplified Last.fm callback
 app.get("/auth/lastfm/callback", async (req, res) => {
   try {
     const { token: lastfmToken, jwt: userToken } = req.query;
+    console.log("Callback received with:", { lastfmToken, userToken }); // Debug log
 
-    if (!lastfmToken || !userToken) {
-      throw new Error("Missing tokens");
+    if (!lastfmToken) {
+      throw new Error("No Last.fm token received");
+    }
+    if (!userToken) {
+      throw new Error("No user JWT received");
     }
 
-    const params = {
-      method: "auth.getSession",
-      api_key: process.env.LASTFM_API_KEY,
-      token: lastfmToken,
-    };
-
-    const sigString =
-      Object.keys(params)
-        .sort()
-        .map((key) => `${key}${params[key]}`)
-        .join("") + process.env.LASTFM_SECRET;
-
-    const apiSig = crypto.createHash("md5").update(sigString).digest("hex");
-
-    const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=auth.getSession&api_key=${process.env.LASTFM_API_KEY}&token=${lastfmToken}&api_sig=${apiSig}&format=json`
-    );
-
-    const data = await response.json();
-
-    if (!data.session) {
-      throw new Error("Failed to get Last.fm session");
-    }
-
+    const session = await getLastFmSession(lastfmToken);
     const decoded = jwt.verify(userToken, process.env.JWT_SECRET);
-    await User.findByIdAndUpdate(decoded.userId, {
-      lastfmUsername: data.session.name,
-      lastfmKey: data.session.key,
+
+    console.log("📍 Saving Last.fm session to DB:", {
+      userId: decoded.userId,
+      username: session.name,
+      sessionKey: session.key,
     });
 
-    res.redirect(
-      `${process.env.CLIENT_URL}/dashboard?` +
-        `lastfm_connected=true&` +
-        `username=${encodeURIComponent(data.session.name)}&` +
-        `key=${encodeURIComponent(data.session.key)}`
+    // Save ALL the credentials to the user document
+    await User.findByIdAndUpdate(
+      decoded.userId,
+      {
+        lastfmUsername: session.name,
+        lastfmSessionKey: session.key,
+        lastfm: {
+          username: session.name,
+          sessionKey: session.key,
+          connectedAt: new Date(),
+        },
+      },
+      { new: true }
     );
+
+    // Redirect with all necessary data
+    const redirectUrl = new URL(`${process.env.CLIENT_URL}/dashboard`);
+    redirectUrl.searchParams.set("lastfm_connected", "true");
+    redirectUrl.searchParams.set("sessionKey", session.key);
+    redirectUrl.searchParams.set("username", session.name);
+
+    res.redirect(redirectUrl.toString());
   } catch (error) {
     console.error("Last.fm auth error:", error);
-    res.redirect(`${process.env.CLIENT_URL}/dashboard?error=auth_failed`);
+    res.redirect(
+      `${process.env.CLIENT_URL}/dashboard?error=auth_failed&message=${error.message}`
+    );
   }
 });
 
 app.post("/api/lastfm/save-session", verifyToken, async (req, res) => {
   try {
-    const { sessionKey } = req.body;
-    const user = await User.findById(req.user.userId);
+    const { sessionKey, username } = req.body;
+    console.log("📍 Saving session:", { username, hasKey: !!sessionKey });
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const updateResult = await User.findByIdAndUpdate(
+      req.user.userId,
+      {
+        lastfmUsername: username,
+        lastfmSessionKey: sessionKey,
+      },
+      { new: true }
+    );
 
-    if (!user.tokens) user.tokens = [];
-    user.tokens.push({
-      type: "lastfm",
-      key: sessionKey,
+    console.log("📍 Update result:", {
+      success: !!updateResult,
+      username: updateResult?.lastfmUsername,
+      hasKey: !!updateResult?.lastfmSessionKey,
     });
-    user.lastfm = sessionKey;
 
-    await user.save();
     res.json({ success: true });
   } catch (error) {
     console.error("Error saving Last.fm session:", error);
@@ -292,42 +311,70 @@ app.get("/api/lastfm/topartists", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch top artists" });
   }
 });
-
 app.get("/api/lastfm/now-playing", verifyToken, async (req, res) => {
+  console.log("📻 Now Playing endpoint called");
+
   try {
     const user = await User.findById(req.user.userId);
-    if (!user || !user.tokens?.lastfm?.username) {
+    const sessionKey = req.headers["x-lastfm-session"];
+
+    console.log("📻 Auth details:", {
+      username: user?.lastfmUsername,
+      hasSessionKey: !!sessionKey,
+    });
+
+    if (!user?.lastfmUsername || !sessionKey) {
+      console.log("📻 Missing credentials");
       return res.json({ playing: false });
     }
 
-    const lastfm = user.tokens.lastfm;
-    console.log("Fetching now playing for user:", lastfm.username);
+    // Updated API URL to include both session key and user info
+    const apiUrl = new URL("http://ws.audioscrobbler.com/2.0/");
+    apiUrl.searchParams.set("method", "user.getrecenttracks");
+    apiUrl.searchParams.set("user", user.lastfmUsername);
+    apiUrl.searchParams.set("api_key", process.env.LASTFM_API_KEY);
+    apiUrl.searchParams.set("sk", sessionKey);
+    apiUrl.searchParams.set("format", "json");
+    apiUrl.searchParams.set("limit", "1");
+    apiUrl.searchParams.set("extended", "1");
 
-    const apiUrl = `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${lastfm.username}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=1`;
-    const response = await fetch(apiUrl);
+    console.log("📻 Making request to Last.fm...");
+    const response = await fetch(apiUrl.toString());
+    console.log("📻 Response status:", response.status);
+
     const data = await response.json();
+    if (data.error) {
+      throw new Error(`Last.fm API error: ${data.message}`);
+    }
 
-    if (!data.recenttracks?.track?.length) {
+    const currentTrack = data.recenttracks?.track?.[0];
+    if (!currentTrack) {
       return res.json({ playing: false });
     }
 
-    const currentTrack = data.recenttracks.track[0];
     const isPlaying = !!currentTrack["@attr"]?.nowplaying;
+    console.log("📻 Track info:", {
+      name: currentTrack.name,
+      artist: currentTrack.artist?.name || currentTrack.artist?.["#text"],
+      isPlaying,
+    });
 
     return res.json({
       playing: isPlaying,
       track: {
         name: currentTrack.name,
-        artist: currentTrack.artist["#text"],
-        album: currentTrack.album["#text"],
-        image: currentTrack.image?.[2]?.["#text"],
+        artist: currentTrack.artist?.name || currentTrack.artist?.["#text"],
+        album: currentTrack.album?.["#text"],
+        image: currentTrack.image?.[3]?.["#text"],
         url: currentTrack.url,
       },
-      timestamp: isPlaying ? Date.now() : currentTrack.date?.uts * 1000,
+      timestamp: isPlaying
+        ? Date.now()
+        : parseInt(currentTrack.date?.uts) * 1000,
     });
   } catch (error) {
-    console.error("Error fetching now playing:", error);
-    return res.status(500).json({ error: "Failed to fetch now playing" });
+    console.error("📻 Error:", error);
+    return res.status(500).json({ error: error.message, playing: false });
   }
 });
 
@@ -349,7 +396,7 @@ app.get("/api/lastfm/user/top-artists", verifyToken, async (req, res) => {
   }
 });
 
-// Add endpoint for recent scrobbles
+// Update the recent scrobbles endpoint
 app.get("/api/lastfm/user/recent", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
@@ -357,12 +404,17 @@ app.get("/api/lastfm/user/recent", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "User not connected" });
     }
 
+    // Using direct query parameters for clarity
     const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=20&extended=1`
+      `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&extended=1`
     );
+
     const data = await response.json();
+
+    // Send the raw recenttracks object
     res.json(data.recenttracks);
   } catch (error) {
+    console.error("Error fetching recent tracks:", error);
     res.status(500).json({ error: "Failed to fetch recent tracks" });
   }
 });
@@ -441,6 +493,94 @@ async function getLastFmSession(token) {
 
   return data.session;
 }
+
+// Add new Last.fm authentication endpoint
+app.get("/auth/lastfm/connect", verifyToken, (req, res) => {
+  const authUrl = `http://www.last.fm/api/auth/?api_key=${process.env.LASTFM_API_KEY}&cb=${process.env.LASTFM_CALLBACK_URL}`;
+  res.json({ authUrl });
+});
+
+app.post("/auth/lastfm/callback", verifyToken, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const session = await getLastFmSession(token);
+
+    await User.findByIdAndUpdate(req.user.userId, {
+      lastfm: {
+        username: session.name,
+        sessionKey: session.key,
+        connectedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, username: session.name });
+  } catch (error) {
+    console.error("Last.fm callback error:", error);
+    res.status(500).json({ error: "Authentication failed" });
+  }
+});
+
+// Initialize Last.fm auth
+app.get("/auth/lastfm/init", verifyToken, (req, res) => {
+  try {
+    const authUrl = lastFmService.generateAuthUrl(
+      req.headers.authorization.split(" ")[1]
+    );
+    res.json({ authUrl });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate auth URL" });
+  }
+});
+
+// Handle Last.fm callback
+app.get("/auth/lastfm/callback", async (req, res) => {
+  try {
+    const { token: lastfmToken, jwt: userToken } = req.query;
+
+    if (!lastfmToken || !userToken) {
+      throw new Error("Missing required tokens");
+    }
+
+    const decoded = jwt.verify(userToken, process.env.JWT_SECRET);
+    const session = await lastFmService.getSession(lastfmToken);
+
+    // Save credentials
+    await lastFmService.saveCredentials(
+      decoded.userId,
+      session.name,
+      session.key
+    );
+
+    // Update user
+    await User.findByIdAndUpdate(decoded.userId, { lastFmConnected: true });
+
+    const redirectUrl = new URL(`${process.env.CLIENT_URL}/dashboard`);
+    redirectUrl.searchParams.set("lastfm_connected", "true");
+    res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error("Last.fm callback error:", error);
+    res.redirect(`${process.env.CLIENT_URL}/dashboard?error=auth_failed`);
+  }
+});
+
+// Get Now Playing
+app.get("/api/lastfm/now-playing", verifyToken, async (req, res) => {
+  try {
+    const credentials = await lastFmService.getCredentials(req.user.userId);
+    if (!credentials) {
+      return res.json({ playing: false });
+    }
+
+    const response = await fetch(
+      `${lastFmService.API_URL}?method=user.getrecenttracks&user=${credentials.username}&api_key=${lastFmService.API_KEY}&format=json&limit=1`
+    );
+
+    const data = await response.json();
+    // ... rest of now playing logic ...
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch now playing" });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);

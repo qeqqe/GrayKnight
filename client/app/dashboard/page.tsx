@@ -20,7 +20,7 @@ import {
   User,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogOut } from "lucide-react";
@@ -32,17 +32,104 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/providers/AuthProvider";
 
-export default function DashboardPage() {
+interface Track {
+  name: string;
+  artist: {
+    "#text": string;
+    name?: string;
+  };
+  image: Array<{
+    "#text": string;
+    size: string;
+  }>;
+}
+
+interface LastFmProfile {
+  name: string;
+  playcount: string;
+  image: Array<{
+    "#text": string;
+    size: string;
+  }>;
+}
+
+interface MusicProfile {
+  lastfm: LastFmProfile;
+  recentTracks: {
+    track: Track[];
+  };
+}
+
+interface Artist {
+  name: string;
+  playcount: string;
+  listeners: string;
+  image: Array<{
+    "#text": string;
+    size: string;
+  }>;
+}
+
+interface UserTopTrack {
+  name: string;
+  duration: string;
+  playcount: string;
+  artist: {
+    name: string;
+    "#text"?: string;
+  };
+  image: Array<{
+    "#text": string;
+    size: string;
+  }>;
+}
+
+interface RecentTrack {
+  name: string;
+  artist: {
+    "#text": string;
+    name?: string;
+  };
+  album: {
+    "#text": string;
+  };
+  image: Array<{
+    "#text": string;
+    size: string;
+  }>;
+  "@attr"?: {
+    nowplaying: boolean;
+  };
+  date?: {
+    uts: string;
+  };
+}
+
+interface CurrentTrack {
+  playing: boolean;
+  track: {
+    name: string;
+    artist: string;
+    album: string;
+    image?: string;
+    userPlaycount?: number;
+    tags?: Array<{ name: string }>;
+  };
+  timestamp?: number;
+}
+
+const DashboardPage = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [lastfmUser, setLastfmUser] = useState<any>(null);
   const { logout } = useAuth();
-  const [topArtists, setTopArtists] = useState<any[]>([]);
-  const [currentTrack, setCurrentTrack] = useState<any>(null);
-  const [recentTracks, setRecentTracks] = useState<any[]>([]);
+  const [topArtists, setTopArtists] = useState<Artist[]>([]);
+  const [currentTrack, setCurrentTrack] = useState<CurrentTrack | null>(null);
+  const [recentTracks, setRecentTracks] = useState<RecentTrack[]>([]);
   const [userTopArtists, setUserTopArtists] = useState<any[]>([]);
-  const [userTopTracks, setUserTopTracks] = useState<any[]>([]);
+  const [userTopTracks, setUserTopTracks] = useState<UserTopTrack[]>([]);
   const [tracksPeriod, setTracksPeriod] = useState<string>("7day");
+  const [musicProfile, setMusicProfile] = useState<MusicProfile | null>(null);
 
   const handleLastFmConnect = () => {
     const token = localStorage.getItem("token");
@@ -50,67 +137,49 @@ export default function DashboardPage() {
       console.error("No auth token found");
       return;
     }
-    console.log("Starting Last.fm connection with token:", token);
-    window.location.href = `http://localhost:3001/auth/lastfm?auth_token=${token}`;
+
+    // Log the token being sent
+    console.log("Initiating Last.fm auth with token:", token);
+
+    // Make sure to properly encode the token
+    const encodedToken = encodeURIComponent(token);
+    window.location.href = `http://localhost:3001/auth/lastfm?auth_token=${encodedToken}`;
   };
 
   useEffect(() => {
     const init = async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) {
-          console.log("📍 No token found, skipping init");
-          return;
-        }
+        if (!token) return;
 
-        console.log("📍 Stored Tokens:", {
-          jwt: token,
-          lastfm_session: localStorage.getItem("lastfm_session_key"),
-          lastfm_username: localStorage.getItem("lastfm_username"),
-        });
-
+        // Handle Last.fm connection callback
         const params = new URLSearchParams(window.location.search);
-        console.log("📍 URL params:", Object.fromEntries(params.entries()));
-
-        if (params.get("error")) {
-          console.error("Auth error:", params.get("error"));
-          return;
-        }
-
         if (params.get("lastfm_connected") === "true") {
           const sessionKey = params.get("sessionKey");
           const username = params.get("username");
-          console.log("Last.fm connection successful:", {
-            sessionKey,
-            username,
-          });
 
           if (sessionKey && username) {
+            console.log("📍 Saving Last.fm credentials to localStorage");
             localStorage.setItem("lastfm_session_key", sessionKey);
             localStorage.setItem("lastfm_username", username);
+            // No need to call save-session endpoint anymore
           }
         }
 
-        console.log("📍 Checking Last.fm status...");
-        const response = await fetch(
+        // Check connection status
+        const statusResponse = await fetch(
           "http://localhost:3001/api/lastfm/status",
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           }
         );
-        const data = await response.json();
-        console.log("📍 Status response:", data);
-
-        setIsConnected(data.connected);
-        if (data.connected) {
-          console.log("📍 Connected user data:", data.userInfo);
-          setLastfmUser(data.userInfo);
-          setDebugInfo(data);
+        const statusData = await statusResponse.json();
+        setIsConnected(statusData.connected);
+        if (statusData.connected) {
+          setLastfmUser(statusData.userInfo);
         }
       } catch (error) {
-        console.error("📍 Initialization error:", error);
+        console.error("📍 Init error:", error);
       }
     };
 
@@ -131,24 +200,38 @@ export default function DashboardPage() {
     if (!isConnected) return;
 
     const fetchCurrentTrack = async () => {
+      console.log("🎵 Starting fetchCurrentTrack");
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
+        const sessionKey = localStorage.getItem("lastfm_session_key");
+
+        if (!token || !sessionKey) {
+          console.log("🎵 Missing credentials", {
+            hasToken: !!token,
+            hasSession: !!sessionKey,
+          });
+          return;
+        }
 
         const response = await fetch(
           "http://localhost:3001/api/lastfm/now-playing",
           {
             headers: {
               Authorization: `Bearer ${token}`,
+              "x-lastfm-session": sessionKey,
             },
           }
         );
 
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
-        console.log("Current track data:", data);
+        console.log("🎵 Response data:", data);
         setCurrentTrack(data);
       } catch (error) {
-        console.error("Failed to fetch current track:", error);
+        console.error("🎵 Failed to fetch current track:", error);
       }
     };
 
@@ -163,6 +246,8 @@ export default function DashboardPage() {
     const fetchRecentTracks = async () => {
       try {
         const token = localStorage.getItem("token");
+        if (!token) return;
+
         const response = await fetch(
           "http://localhost:3001/api/lastfm/user/recent",
           {
@@ -170,7 +255,12 @@ export default function DashboardPage() {
           }
         );
         const data = await response.json();
-        setRecentTracks(data.track || []);
+        console.log("Recent tracks response:", data); // Debug log
+        if (data && data.track) {
+          setRecentTracks(
+            Array.isArray(data.track) ? data.track : [data.track]
+          );
+        }
       } catch (error) {
         console.error("Failed to fetch recent tracks:", error);
       }
@@ -226,13 +316,44 @@ export default function DashboardPage() {
   }, [isConnected, tracksPeriod]);
 
   useEffect(() => {
-    return () => {
-      // Don't remove the token on unmount if you want to persist the session
-      // Only remove it on logout
-      // localStorage.removeItem("lastfm_session_key");
-      // localStorage.removeItem("lastfm_username");
+    const fetchMusicProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          "http://localhost:3001/api/music-profile",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await response.json();
+        setMusicProfile(data);
+      } catch (error) {
+        console.error("Failed to fetch music profile:", error);
+      }
     };
-  }, []);
+
+    if (isConnected) {
+      fetchMusicProfile();
+      const interval = setInterval(fetchMusicProfile, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
+  const connectLastFm = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        "http://localhost:3001/auth/lastfm/connect",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const { authUrl } = await response.json();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error("Failed to connect Last.fm:", error);
+    }
+  };
 
   const renderContent = () => {
     if (!isConnected) {
@@ -324,6 +445,12 @@ export default function DashboardPage() {
       return () => clearInterval(timer);
     }, [currentTrack?.timestamp]);
 
+    const formatNumber = (num: number) => {
+      if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+      if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+      return num.toString();
+    };
+
     return (
       <Card className="col-span-3">
         <CardHeader>
@@ -339,10 +466,10 @@ export default function DashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
-            {currentTrack?.track ? (
-              <>
-                <div className="h-16 w-16 rounded-md bg-muted overflow-hidden">
+          {currentTrack?.track ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="h-24 w-24 rounded-md bg-muted overflow-hidden">
                   {currentTrack.track.image ? (
                     <img
                       src={currentTrack.track.image}
@@ -355,41 +482,64 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-1 flex-1">
-                  <h4 className="font-medium leading-none">
+                <div className="flex-1 space-y-1">
+                  <h3 className="font-medium text-lg leading-none">
                     {currentTrack.track.name}
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
+                  </h3>
+                  <p className="text-base text-muted-foreground">
                     {currentTrack.track.artist}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {currentTrack.track.album}
                   </p>
-                  {!currentTrack.playing && currentTrack.timestamp && (
-                    <p className="text-xs text-muted-foreground">
-                      {elapsed < 60
-                        ? `${elapsed}s ago`
-                        : elapsed < 3600
-                        ? `${Math.floor(elapsed / 60)}m ago`
-                        : `${Math.floor(elapsed / 3600)}h ago`}
+                  {currentTrack.track.userPlaycount && (
+                    <p className="text-sm">
+                      Played {formatNumber(currentTrack.track.userPlaycount)}{" "}
+                      times
                     </p>
                   )}
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center">
-                  <Disc className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-medium leading-none">Nothing playing</h4>
-                  <p className="text-sm text-muted-foreground">
-                    No recent scrobbles
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
+              </div>
+
+              {currentTrack.track.tags &&
+                currentTrack.track.tags.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {currentTrack.track.tags
+                      .slice(0, 5)
+                      .map((tag: { name: string }) => (
+                        <span
+                          key={tag.name}
+                          className="px-2 py-1 text-xs rounded-full bg-muted"
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                  </div>
+                )}
+
+              {!currentTrack.playing && currentTrack.timestamp && (
+                <p className="text-sm text-muted-foreground">
+                  {elapsed < 60
+                    ? `${elapsed}s ago`
+                    : elapsed < 3600
+                    ? `${Math.floor(elapsed / 60)}m ago`
+                    : `${Math.floor(elapsed / 3600)}h ago`}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="h-24 w-24 rounded-md bg-muted flex items-center justify-center">
+                <Disc className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div>
+                <h4 className="font-medium leading-none">Nothing playing</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  No recent scrobbles
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -420,7 +570,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px] pr-4">
-            {userTopTracks.map((track: any, index: number) => (
+            {userTopTracks.map((track: UserTopTrack, index: number) => (
               <div
                 key={`${track.name}-${index}`}
                 className="flex items-center gap-4 py-4 border-b"
@@ -450,13 +600,79 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {track.duration
-                      ? `${Math.floor(track.duration / 60)}:${(
-                          track.duration % 60
+                      ? `${Math.floor(Number(track.duration) / 60)}:${(
+                          Number(track.duration) % 60
                         )
                           .toString()
                           .padStart(2, "0")}`
                       : "N/A"}
                   </div>
+                </div>
+              </div>
+            ))}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  );
+
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return date.toLocaleDateString();
+  };
+
+  const recentTracksContent = (
+    <TabsContent value="recent">
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Scrobbles</CardTitle>
+          <CardDescription>Your latest music activity</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px] pr-4">
+            {recentTracks.map((track: RecentTrack, index: number) => (
+              <div
+                key={`${track.name}-${index}`}
+                className="flex items-center gap-4 py-4 border-b"
+              >
+                <Avatar className="h-12 w-12">
+                  <AvatarFallback>
+                    <Music2 className="h-4 w-4" />
+                  </AvatarFallback>
+                  {track.image?.[2]?.["#text"] && (
+                    <img
+                      src={track.image[2]["#text"]}
+                      alt="Album art"
+                      className="object-cover"
+                    />
+                  )}
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{track.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {track.artist?.name || track.artist?.["#text"]}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {track.album?.["#text"]}
+                  </p>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {track["@attr"]?.nowplaying ? (
+                    <span className="flex items-center gap-2">
+                      Now Playing
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    </span>
+                  ) : track.date?.uts ? (
+                    formatTimestamp(parseInt(track.date.uts))
+                  ) : (
+                    "N/A"
+                  )}
                 </div>
               </div>
             ))}
@@ -522,6 +738,7 @@ export default function DashboardPage() {
             <TabsTrigger value="recent">Recent</TabsTrigger>
             <TabsTrigger value="artists">Top Artists</TabsTrigger>
             <TabsTrigger value="tracks">Top Tracks</TabsTrigger>
+            <TabsTrigger value="music">Music Profile</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -574,52 +791,7 @@ export default function DashboardPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="recent">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Scrobbles</CardTitle>
-                <CardDescription>Your latest music activity</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[400px] pr-4">
-                  {recentTracks.map((track: any, index: number) => (
-                    <div
-                      key={`${track.name}-${index}`}
-                      className="flex items-center gap-4 py-4 border-b"
-                    >
-                      <Avatar>
-                        <AvatarFallback>
-                          <Music2 className="h-4 w-4" />
-                        </AvatarFallback>
-                        {track.image?.[1]?.["#text"] && (
-                          <img
-                            src={track.image[1]["#text"]}
-                            alt="Album art"
-                            className="object-cover"
-                          />
-                        )}
-                      </Avatar>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {track.name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {track.artist["#text"]}
-                        </p>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {track["@attr"]?.nowplaying
-                          ? "Now playing"
-                          : new Date(
-                              track.date.uts * 1000
-                            ).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  ))}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {recentTracksContent}
 
           <TabsContent value="artists">
             <Card>
@@ -629,7 +801,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px] pr-4">
-                  {topArtists.map((artist: any, index: number) => (
+                  {topArtists.map((artist: Artist, index: number) => (
                     <div
                       key={artist.name}
                       className="flex items-center gap-4 py-4 border-b"
@@ -662,11 +834,70 @@ export default function DashboardPage() {
           </TabsContent>
 
           {tracksContent}
+
+          <TabsContent value="music">
+            <Card>
+              <CardHeader>
+                <CardTitle>Music Profile</CardTitle>
+                <CardDescription>Your Last.fm listening stats</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {musicProfile ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <Avatar>
+                        <AvatarImage
+                          src={musicProfile.lastfm.image[2]?.["#text"]}
+                        />
+                        <AvatarFallback>LF</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="font-medium">
+                          {musicProfile.lastfm.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {parseInt(
+                            musicProfile.lastfm.playcount
+                          ).toLocaleString()}{" "}
+                          scrobbles
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Recent Tracks</h4>
+                      {musicProfile.recentTracks.track.map((track, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <img
+                            src={track.image[0]?.["#text"]}
+                            alt=""
+                            className="w-8 h-8"
+                          />
+                          <div>
+                            <p>{track.name}</p>
+                            <p className="text-muted-foreground">
+                              {track.artist["#text"]}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <Button onClick={connectLastFm}>Connect Last.fm</Button>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
     </div>
   );
-}
+};
+
+export default DashboardPage;
 function checkLastFmStatus() {
   throw new Error("Function not implemented.");
 }
