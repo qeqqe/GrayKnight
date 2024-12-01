@@ -118,6 +118,18 @@ interface CurrentTrack {
   timestamp?: number;
 }
 
+// Add new interface for recent tracks response
+interface RecentTracksResponse {
+  tracks: RecentTrack[];
+  meta: {
+    page: number;
+    perPage: number;
+    total: number;
+    totalPages: number;
+    user: string;
+  };
+}
+
 const DashboardPage = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
@@ -138,10 +150,8 @@ const DashboardPage = () => {
       return;
     }
 
-    // Log the token being sent
     console.log("Initiating Last.fm auth with token:", token);
 
-    // Make sure to properly encode the token
     const encodedToken = encodeURIComponent(token);
     window.location.href = `http://localhost:3001/auth/lastfm?auth_token=${encodedToken}`;
   };
@@ -152,7 +162,6 @@ const DashboardPage = () => {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        // Handle Last.fm connection callback
         const params = new URLSearchParams(window.location.search);
         if (params.get("lastfm_connected") === "true") {
           const sessionKey = params.get("sessionKey");
@@ -162,11 +171,9 @@ const DashboardPage = () => {
             console.log("📍 Saving Last.fm credentials to localStorage");
             localStorage.setItem("lastfm_session_key", sessionKey);
             localStorage.setItem("lastfm_username", username);
-            // No need to call save-session endpoint anymore
           }
         }
 
-        // Check connection status
         const statusResponse = await fetch(
           "http://localhost:3001/api/lastfm/status",
           {
@@ -243,23 +250,32 @@ const DashboardPage = () => {
   useEffect(() => {
     if (!isConnected) return;
 
-    const fetchRecentTracks = async () => {
+    const fetchRecentTracks = async (page = 1, limit = 50) => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
+        const sessionKey = localStorage.getItem("lastfm_session_key"); // Add this
+
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+          extended: "1",
+        });
 
         const response = await fetch(
-          "http://localhost:3001/api/lastfm/user/recent",
+          `http://localhost:3001/api/lastfm/user/recent?${params}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: new Headers({
+              Authorization: `Bearer ${token}`,
+              "x-lastfm-session": sessionKey || "",
+            }),
           }
         );
-        const data = await response.json();
-        console.log("Recent tracks response:", data); // Debug log
-        if (data && data.track) {
-          setRecentTracks(
-            Array.isArray(data.track) ? data.track : [data.track]
-          );
+
+        const data: RecentTracksResponse = await response.json();
+        console.log("Recent tracks response:", data);
+
+        if (data?.tracks) {
+          setRecentTracks(data.tracks);
         }
       } catch (error) {
         console.error("Failed to fetch recent tracks:", error);
