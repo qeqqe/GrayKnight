@@ -60,14 +60,21 @@ interface MusicProfile {
   };
 }
 
+// Update the Artist interface to match the actual response
 interface Artist {
   name: string;
   playcount: string;
-  listeners: string;
+  listeners?: string;
+  mbid: string;
+  url: string;
+  streamable: string;
   image: Array<{
     "#text": string;
-    size: string;
+    size: "small" | "medium" | "large" | "extralarge" | "mega";
   }>;
+  "@attr"?: {
+    rank: string;
+  };
 }
 
 interface UserTopTrack {
@@ -141,6 +148,7 @@ const DashboardPage = () => {
   const [userTopArtists, setUserTopArtists] = useState<any[]>([]);
   const [userTopTracks, setUserTopTracks] = useState<UserTopTrack[]>([]);
   const [tracksPeriod, setTracksPeriod] = useState<string>("7day");
+  const [artistsPeriod, setArtistsPeriod] = useState<string>("7day");
   const [musicProfile, setMusicProfile] = useState<MusicProfile | null>(null);
 
   const handleLastFmConnect = () => {
@@ -196,9 +204,10 @@ const DashboardPage = () => {
   useEffect(() => {
     fetch("http://localhost:3001/api/lastfm/topartists")
       .then((res) => res.json())
-      .then((data) => {
-        console.log("Top artists data:", data);
-        setTopArtists(data?.artist || []);
+      .then((artists) => {
+        console.log("🎸 First artist data:", artists[0]);
+        console.log("🎸 First artist image data:", artists[0]?.image);
+        setTopArtists(artists);
       })
       .catch(console.error);
   }, []);
@@ -253,7 +262,7 @@ const DashboardPage = () => {
     const fetchRecentTracks = async (page = 1, limit = 50) => {
       try {
         const token = localStorage.getItem("token");
-        const sessionKey = localStorage.getItem("lastfm_session_key"); // Add this
+        const sessionKey = localStorage.getItem("lastfm_session_key");
 
         const params = new URLSearchParams({
           page: page.toString(),
@@ -294,7 +303,7 @@ const DashboardPage = () => {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch(
-          "http://localhost:3001/api/lastfm/user/top-artists",
+          `http://localhost:3001/api/lastfm/user/top-artists?period=${artistsPeriod}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -307,7 +316,7 @@ const DashboardPage = () => {
     };
 
     fetchUserTopArtists();
-  }, [isConnected]);
+  }, [isConnected, artistsPeriod]); // Add artistsPeriod as dependency
 
   useEffect(() => {
     if (!isConnected) return;
@@ -372,7 +381,7 @@ const DashboardPage = () => {
   };
 
   const renderContent = () => {
-    if (!isConnected) {
+    if (!isConnected || !localStorage.getItem("lastfm_session_key")) {
       return (
         <Card className="border-dashed">
           <CardHeader className="text-center">
@@ -396,9 +405,6 @@ const DashboardPage = () => {
         <CardHeader>
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
-              <AvatarFallback>
-                {lastfmUser?.name?.[0]?.toUpperCase()}
-              </AvatarFallback>
               {lastfmUser?.image?.[3]?.["#text"] && (
                 <img
                   src={lastfmUser.image[3]["#text"]}
@@ -406,6 +412,9 @@ const DashboardPage = () => {
                   className="object-cover"
                 />
               )}
+              <AvatarFallback>
+                {lastfmUser?.name?.[0]?.toUpperCase()}
+              </AvatarFallback>
             </Avatar>
             <div>
               <CardTitle>{lastfmUser?.name}</CardTitle>
@@ -593,16 +602,17 @@ const DashboardPage = () => {
               >
                 <div className="text-2xl font-bold w-8">{index + 1}</div>
                 <Avatar className="h-12 w-12">
+                  <AvatarImage
+                    src={
+                      track.image?.find((img) => img.size === "large")?.[
+                        "#text"
+                      ]
+                    }
+                    alt="Album art"
+                  />
                   <AvatarFallback>
                     <Music2 className="h-4 w-4" />
                   </AvatarFallback>
-                  {track.image?.[1]?.["#text"] && (
-                    <img
-                      src={track.image[1]["#text"]}
-                      alt="Album art"
-                      className="object-cover"
-                    />
-                  )}
                 </Avatar>
                 <div className="flex-1">
                   <p className="font-medium">{track.name}</p>
@@ -658,9 +668,6 @@ const DashboardPage = () => {
                 className="flex items-center gap-4 py-4 border-b"
               >
                 <Avatar className="h-12 w-12">
-                  <AvatarFallback>
-                    <Music2 className="h-4 w-4" />
-                  </AvatarFallback>
                   {track.image?.[2]?.["#text"] && (
                     <img
                       src={track.image[2]["#text"]}
@@ -668,6 +675,9 @@ const DashboardPage = () => {
                       className="object-cover"
                     />
                   )}
+                  <AvatarFallback>
+                    <Music2 className="h-4 w-4" />
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <p className="font-medium">{track.name}</p>
@@ -812,26 +822,47 @@ const DashboardPage = () => {
           <TabsContent value="artists">
             <Card>
               <CardHeader>
-                <CardTitle>Top Artists</CardTitle>
-                <CardDescription>Global top artists on Last.fm</CardDescription>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Top Artists</CardTitle>
+                    <CardDescription>
+                      Your top artists on Last.fm
+                    </CardDescription>
+                  </div>
+                  <select
+                    value={artistsPeriod}
+                    onChange={(e) => setArtistsPeriod(e.target.value)}
+                    className="p-2 rounded-md border bg-background"
+                  >
+                    <option value="7day">Last 7 Days</option>
+                    <option value="1month">Last Month</option>
+                    <option value="3month">Last 3 Months</option>
+                    <option value="6month">Last 6 Months</option>
+                    <option value="12month">Last Year</option>
+                    <option value="overall">All Time</option>
+                  </select>
+                </div>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px] pr-4">
-                  {topArtists.map((artist: Artist, index: number) => (
+                  {userTopArtists.map((artist: Artist, index: number) => (
                     <div
                       key={artist.name}
                       className="flex items-center gap-4 py-4 border-b"
                     >
                       <div className="text-2xl font-bold w-8">{index + 1}</div>
                       <Avatar className="h-12 w-12">
+                        <AvatarImage
+                          src={
+                            artist.image?.find(
+                              (img) =>
+                                img.size === "large" ||
+                                img.size === "extralarge"
+                            )?.["#text"]
+                          }
+                          alt={artist.name}
+                        />
                         <AvatarFallback>{artist.name[0]}</AvatarFallback>
-                        {artist.image?.[1]?.["#text"] && (
-                          <img
-                            src={artist.image[1]["#text"]}
-                            alt={artist.name}
-                            className="object-cover"
-                          />
-                        )}
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-medium">{artist.name}</p>
@@ -840,7 +871,8 @@ const DashboardPage = () => {
                         </p>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {parseInt(artist.listeners).toLocaleString()} listeners
+                        {parseInt(artist.listeners || "0").toLocaleString()}{" "}
+                        listeners
                       </div>
                     </div>
                   ))}

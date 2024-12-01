@@ -295,19 +295,20 @@ app.get("/api/lastfm/userinfo", async (req, res) => {
 
 app.get("/api/lastfm/topartists", async (req, res) => {
   try {
+    console.log("🎸 Fetching top artists from Last.fm...");
     const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50`
+      `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50`
     );
     const data = await response.json();
 
-    console.log("Last.fm top artists response:", data);
-
-    res.json(data.artists);
+    // Send the artist array from the correct path in the response
+    res.json(data.topartists.artist || []);
   } catch (error) {
-    console.error("Error fetching top artists:", error);
+    console.error("🎸 Error fetching top artists:", error);
     res.status(500).json({ error: "Failed to fetch top artists" });
   }
 });
+
 app.get("/api/lastfm/now-playing", verifyToken, async (req, res) => {
   console.log("📻 Now Playing endpoint called");
 
@@ -380,9 +381,9 @@ app.get("/api/lastfm/user/top-artists", verifyToken, async (req, res) => {
     if (!user?.lastfmUsername) {
       return res.status(404).json({ error: "User not connected" });
     }
-
+    const period = req.query.period || "7day";
     const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=7day`
+      `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=${period}`
     );
     const data = await response.json();
     res.json(data.topartists);
