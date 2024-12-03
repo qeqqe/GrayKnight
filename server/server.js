@@ -27,22 +27,24 @@ const port = process.env.PORT || 3001;
 const verifyToken = require("./components/authVerifier");
 const ConnectDB = require("./components/ConnectDB");
 
+// Update session configuration
 app.use(
   session({
     secret: JWT_SECRET,
-    resave: false,
-    saveUninitialized: true, // Changed to true
+    resave: true,
+    saveUninitialized: true,
     cookie: {
       secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: "lax",
     },
   })
 );
 
-// Add these CORS options
+// Ensure CORS is configured to allow credentials
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
     credentials: true,
   })
 );
@@ -750,9 +752,25 @@ app.get(
   }
 );
 
-// Remove validateAuthHeader from this route and simplify it
-app.get("/auth/spotify", (req, res, next) => {
+// Replace the Spotify auth route with this
+app.get("/auth/spotify", async (req, res, next) => {
   try {
+    // Get token from query parameter
+    const token = req.query.token;
+
+    if (token) {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.session.userId = decoded.userId;
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          resolve();
+        });
+      });
+      console.log("Set userId in session:", decoded.userId);
+    }
+
+    // Authenticate with Spotify
     passport.authenticate("spotify", {
       scope: [
         "user-read-email",
@@ -761,46 +779,42 @@ app.get("/auth/spotify", (req, res, next) => {
         "user-read-currently-playing",
       ],
       showDialog: true,
+      state: req.session.userId, // Pass userId as state
     })(req, res, next);
   } catch (error) {
     console.error("Spotify auth error:", error);
-    res.status(500).json({ error: "Authentication failed" });
+    res.redirect(
+      `${process.env.CLIENT_URL}/dashboard/spotify?error=auth_failed`
+    );
   }
 });
 
-// Update callback route
+// Update callback verification
 app.get(
   "/auth/spotify/callback",
   (req, res, next) => {
-    // Verify state matches userId from session
-    if (req.query.state !== req.session?.userId) {
-      return res.redirect(
-        `${process.env.CLIENT_URL}/dashboard/spotify?error=state_mismatch`
-      );
-    }
+    console.log("Callback state (userId):", req.query.state);
+    console.log("Session data:", req.session);
     next();
   },
   passport.authenticate("spotify", { failureRedirect: "/login" }),
   async function (req, res) {
     try {
-      console.log("Spotify callback received:", {
-        hasUser: !!req.user,
-        hasTokens: !!req.user?.tokens,
-        userId: req.session?.userId,
-      });
+      const userId = req.query.state || req.session.userId;
+      console.log("Processing callback for userId:", userId);
 
-      if (!req.session?.userId) {
-        throw new Error("No user ID in session");
+      if (!userId) {
+        throw new Error("No user ID found");
       }
 
       const { accessToken, refreshToken, expiresIn } = req.user.tokens;
 
-      // Update user in database
-      await User.findByIdAndUpdate(req.session.userId, {
+      await User.findByIdAndUpdate(userId, {
         spotifyConnected: true,
         spotifyAccessToken: accessToken,
         spotifyRefreshToken: refreshToken,
         spotifyTokenExpiry: new Date(Date.now() + expiresIn * 1000),
+        spotifyProfile: req.user.profile,
       });
 
       const redirectUrl = new URL(
@@ -838,7 +852,6 @@ app.get(
     }
   }
 );
-
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });

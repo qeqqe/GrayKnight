@@ -13,50 +13,56 @@ import { useRouter } from "next/navigation";
 const SpotifyDashboard = () => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    // Check for browser environment
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
 
-    if (params.get("error")) {
-      setError(params.get("error"));
-      return;
-    }
+      if (params.get("error")) {
+        setError(params.get("error"));
+        return;
+      }
 
-    if (params.get("spotify_connected") === "true") {
-      try {
-        localStorage.setItem(
-          "spotify_access_token",
-          params.get("spotify_access_token") || ""
-        );
-        localStorage.setItem(
-          "spotify_refresh_token",
-          params.get("spotify_refresh_token") || ""
-        );
-        localStorage.setItem(
-          "spotify_token_expiry",
-          (
-            Date.now() +
-            parseInt(params.get("spotify_expires_in") || "0") * 1000
-          ).toString()
-        );
-
-        // Clean up URL parameters
-        router.replace("/dashboard/spotify");
-      } catch (error) {
-        console.error("Failed to store Spotify tokens:", error);
-        setError("Failed to complete Spotify connection");
+      if (params.get("spotify_connected") === "true") {
+        try {
+          window.localStorage.setItem(
+            "spotify_access_token",
+            params.get("spotify_access_token") || ""
+          );
+          window.localStorage.setItem(
+            "spotify_refresh_token",
+            params.get("spotify_refresh_token") || ""
+          );
+          window.localStorage.setItem(
+            "spotify_token_expiry",
+            (
+              Date.now() +
+              parseInt(params.get("spotify_expires_in") || "0") * 1000
+            ).toString()
+          );
+          setIsConnected(true);
+          router.replace("/dashboard/spotify");
+        } catch (error) {
+          console.error("Failed to store Spotify tokens:", error);
+          setError("Failed to complete Spotify connection");
+        }
       }
     }
   }, []);
 
   const handleSpotifyConnect = () => {
-    // Just redirect to the auth endpoint
+    const token =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("token")
+        : null;
+
+    // Direct redirect with token in query parameter
     window.location.href = `${
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    }/auth/spotify`;
+    }/auth/spotify?token=${token}`;
   };
-
-  const isConnected = !!localStorage.getItem("spotify_access_token");
 
   return (
     <Card className="border-dashed">

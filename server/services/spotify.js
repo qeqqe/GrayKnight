@@ -10,30 +10,13 @@ function configurePassport() {
         clientID: process.env.SPOTIFY_API_KEY,
         clientSecret: process.env.SPOTIFY_SECRET,
         callbackURL: process.env.SPOTIFY_CALLBACK_URL,
-        passReqToCallback: true,
       },
-      async function (
-        req,
-        accessToken,
-        refreshToken,
-        expires_in,
-        profile,
-        done
-      ) {
+      async function (accessToken, refreshToken, expires_in, profile, done) {
         try {
-          const userId = req.session?.userId;
-          console.log("Spotify auth callback:", {
-            userId,
-            profileId: profile.id,
-          });
-
-          if (!userId) {
-            return done(new Error("No user ID in session"));
-          }
-
+          // Store the tokens and profile
           return done(null, {
-            userId,
             tokens: { accessToken, refreshToken, expiresIn: expires_in },
+            profile: profile,
           });
         } catch (error) {
           return done(error);
@@ -42,7 +25,6 @@ function configurePassport() {
     )
   );
 
-  // Simplify serialization
   passport.serializeUser((user, done) => done(null, user));
   passport.deserializeUser((user, done) => done(null, user));
 }
