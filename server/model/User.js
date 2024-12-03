@@ -9,6 +9,14 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  spotifyId: String,
+  spotifyAccessToken: String,
+  spotifyRefreshToken: String,
+  spotifyTokenExpiry: Date,
+  spotifyConnected: {
+    type: Boolean,
+    default: false,
+  },
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -10,6 +10,8 @@ const rateLimit = require("express-rate-limit");
 const session = require("express-session");
 const crypto = require("crypto");
 const lastFmService = require("./services/lastfm");
+const passport = require("passport");
+const configurePassport = require("./services/spotify");
 dotenv.config();
 
 console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
@@ -24,17 +26,33 @@ const app = express();
 const port = process.env.PORT || 3001;
 const verifyToken = require("./components/authVerifier");
 const ConnectDB = require("./components/ConnectDB");
-app.use(cors());
-app.use(bodyParser.json());
 
 app.use(
   session({
     secret: JWT_SECRET,
     resave: false,
-    saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === "production" },
+    saveUninitialized: true, // Changed to true
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
   })
 );
+
+// Add these CORS options
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+  })
+);
+
+app.use(bodyParser.json());
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+configurePassport();
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -42,6 +60,20 @@ const loginLimiter = rateLimit({
 });
 
 ConnectDB();
+
+// Add this function before route definitions
+const validateAuthHeader = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Invalid authorization header" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+  req.token = token;
+  next();
+};
 
 app.post("/register", async (req, res) => {
   const { username, email, password } = req.body;
@@ -309,219 +341,296 @@ app.get("/api/lastfm/topartists", async (req, res) => {
   }
 });
 
-app.get("/api/lastfm/now-playing", verifyToken, async (req, res) => {
-  console.log("📻 Now Playing endpoint called");
+app.get(
+  "/api/lastfm/now-playing",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    console.log("📻 Now Playing endpoint called");
 
-  try {
-    const user = await User.findById(req.user.userId);
-    const sessionKey = req.headers["x-lastfm-session"];
+    try {
+      const user = await User.findById(req.user.userId);
+      const sessionKey = req.headers["x-lastfm-session"];
 
-    console.log("📻 Auth details:", {
-      username: user?.lastfmUsername,
-      hasSessionKey: !!sessionKey,
-    });
+      console.log("📻 Auth details:", {
+        username: user?.lastfmUsername,
+        hasSessionKey: !!sessionKey,
+      });
 
-    if (!user?.lastfmUsername || !sessionKey) {
-      console.log("📻 Missing credentials");
-      return res.json({ playing: false });
-    }
+      if (!user?.lastfmUsername || !sessionKey) {
+        console.log("📻 Missing credentials");
+        return res.json({ playing: false });
+      }
 
-    const apiUrl = new URL("http://ws.audioscrobbler.com/2.0/");
-    apiUrl.searchParams.set("method", "user.getrecenttracks");
-    apiUrl.searchParams.set("user", user.lastfmUsername);
-    apiUrl.searchParams.set("api_key", process.env.LASTFM_API_KEY);
-    apiUrl.searchParams.set("sk", sessionKey);
-    apiUrl.searchParams.set("format", "json");
-    apiUrl.searchParams.set("limit", "1");
-    apiUrl.searchParams.set("extended", "1");
+      const apiUrl = new URL("http://ws.audioscrobbler.com/2.0/");
+      apiUrl.searchParams.set("method", "user.getrecenttracks");
+      apiUrl.searchParams.set("user", user.lastfmUsername);
+      apiUrl.searchParams.set("api_key", process.env.LASTFM_API_KEY);
+      apiUrl.searchParams.set("sk", sessionKey);
+      apiUrl.searchParams.set("format", "json");
+      apiUrl.searchParams.set("limit", "1");
+      apiUrl.searchParams.set("extended", "1");
 
-    console.log("📻 Making request to Last.fm...");
-    const response = await fetch(apiUrl.toString());
-    console.log("📻 Response status:", response.status);
+      console.log("📻 Making request to Last.fm...");
+      const response = await fetch(apiUrl.toString());
+      console.log("📻 Response status:", response.status);
 
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(`Last.fm API error: ${data.message}`);
-    }
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(`Last.fm API error: ${data.message}`);
+      }
 
-    const currentTrack = data.recenttracks?.track?.[0];
-    if (!currentTrack) {
-      return res.json({ playing: false });
-    }
+      const currentTrack = data.recenttracks?.track?.[0];
+      if (!currentTrack) {
+        return res.json({ playing: false });
+      }
 
-    const isPlaying = !!currentTrack["@attr"]?.nowplaying;
-    console.log("📻 Track info:", {
-      name: currentTrack.name,
-      artist: currentTrack.artist?.name || currentTrack.artist?.["#text"],
-      isPlaying,
-    });
-
-    return res.json({
-      playing: isPlaying,
-      track: {
+      const isPlaying = !!currentTrack["@attr"]?.nowplaying;
+      console.log("📻 Track info:", {
         name: currentTrack.name,
         artist: currentTrack.artist?.name || currentTrack.artist?.["#text"],
-        album: currentTrack.album?.["#text"],
-        image: currentTrack.image?.[3]?.["#text"],
-        url: currentTrack.url,
-      },
-      timestamp: isPlaying
-        ? Date.now()
-        : parseInt(currentTrack.date?.uts) * 1000,
-    });
-  } catch (error) {
-    console.error("📻 Error:", error);
-    return res.status(500).json({ error: error.message, playing: false });
-  }
-});
-
-app.get("/api/lastfm/user/top-artists", verifyToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    if (!user?.lastfmUsername) {
-      return res.status(404).json({ error: "User not connected" });
-    }
-    const period = req.query.period || "7day";
-    const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=${period}`
-    );
-    const data = await response.json();
-    res.json(data.topartists);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch top artists" });
-  }
-});
-
-app.get("/api/lastfm/user/recent", verifyToken, async (req, res) => {
-  console.log("🎵 [Recent Tracks] Endpoint called");
-  try {
-    const user = await User.findById(req.user.userId);
-    const sessionKey = req.headers["x-lastfm-session"]; // This is needed from frontend
-
-    console.log("🎵 [Recent Tracks] Auth details:", {
-      username: user?.lastfmUsername,
-      hasSessionKey: !!sessionKey,
-    });
-
-    if (!user?.lastfmUsername || !sessionKey) {
-      console.log("🎵 [Recent Tracks] Missing credentials");
-      return res.status(404).json({ error: "User not connected" });
-    }
-
-    const { limit = 50, page = 1 } = req.query;
-
-    const apiUrl = new URL("http://ws.audioscrobbler.com/2.0/");
-    apiUrl.searchParams.set("method", "user.getrecenttracks");
-    apiUrl.searchParams.set("user", user.lastfmUsername);
-    apiUrl.searchParams.set("api_key", process.env.LASTFM_API_KEY);
-    apiUrl.searchParams.set("sk", sessionKey); // This was missing!
-    apiUrl.searchParams.set("format", "json");
-    apiUrl.searchParams.set(
-      "limit",
-      Math.min(Math.max(1, Number(limit)), 200).toString()
-    );
-    apiUrl.searchParams.set("page", Math.max(1, Number(page)).toString());
-    apiUrl.searchParams.set("extended", "1");
-
-    console.log("🎵 [Recent Tracks] Last.fm API URL:", apiUrl.toString());
-
-    const response = await fetch(apiUrl.toString());
-    console.log(
-      "🎵 [Recent Tracks] Last.fm API response status:",
-      response.status
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("🎵 [Recent Tracks] Last.fm API error:", error);
-      throw new Error(`Last.fm API error: ${error.message}`);
-    }
-
-    const data = await response.json();
-    console.log("🎵 [Recent Tracks] Last.fm API response data:", {
-      hasData: !!data,
-      trackCount: data?.recenttracks?.track?.length,
-      metadata: data?.recenttracks?.["@attr"],
-    });
-
-    if (data.error) {
-      console.error("🎵 [Recent Tracks] Last.fm API returned error:", {
-        code: data.error,
-        message: data.message,
+        isPlaying,
       });
-      throw new Error(`Last.fm API error (${data.error}): ${data.message}`);
+
+      return res.json({
+        playing: isPlaying,
+        track: {
+          name: currentTrack.name,
+          artist: currentTrack.artist?.name || currentTrack.artist?.["#text"],
+          album: currentTrack.album?.["#text"],
+          image: currentTrack.image?.[3]?.["#text"],
+          url: currentTrack.url,
+        },
+        timestamp: isPlaying
+          ? Date.now()
+          : parseInt(currentTrack.date?.uts) * 1000,
+      });
+    } catch (error) {
+      console.error("📻 Error:", error);
+      return res.status(500).json({ error: error.message, playing: false });
     }
-
-    const formattedResponse = {
-      tracks: data.recenttracks.track || [],
-      meta: {
-        page: Number(data.recenttracks["@attr"]?.page || 1),
-        perPage: Number(data.recenttracks["@attr"]?.perPage || limit),
-        total: Number(data.recenttracks["@attr"]?.total || 0),
-        totalPages: Number(data.recenttracks["@attr"]?.totalPages || 1),
-        user: data.recenttracks["@attr"]?.user,
-      },
-    };
-
-    console.log("🎵 [Recent Tracks] Sending response:", {
-      trackCount: formattedResponse.tracks.length,
-      metadata: formattedResponse.meta,
-    });
-
-    res.json(formattedResponse);
-  } catch (error) {
-    console.error("🎵 [Recent Tracks] Error:", {
-      message: error.message,
-      stack: error.stack,
-    });
-    res.status(500).json({
-      error: "Failed to fetch recent tracks",
-      message: error.message,
-    });
   }
-});
+);
 
-app.get("/api/lastfm/status", verifyToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId);
-
-    if (!user?.lastfmUsername) {
-      return res.json({ connected: false });
+app.get(
+  "/api/lastfm/user/top-artists",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      if (!user?.lastfmUsername) {
+        return res.status(404).json({ error: "User not connected" });
+      }
+      const period = req.query.period || "7day";
+      const response = await fetch(
+        `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=${period}`
+      );
+      const data = await response.json();
+      res.json(data.topartists);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch top artists" });
     }
-
-    const userInfo = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json`
-    ).then((r) => r.json());
-
-    return res.json({
-      connected: true,
-      username: user.lastfmUsername,
-      userInfo: userInfo.user,
-    });
-  } catch (error) {
-    console.error("Status check error:", error);
-    return res.status(500).json({ connected: false, error: error.message });
   }
-});
+);
 
-app.get("/api/lastfm/user/top-tracks", verifyToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId);
-    if (!user?.lastfmUsername) {
-      return res.status(404).json({ error: "User not connected" });
+app.get(
+  "/api/lastfm/user/recent",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    console.log("🎵 [Recent Tracks] Endpoint called");
+    try {
+      const user = await User.findById(req.user.userId);
+      const sessionKey = req.headers["x-lastfm-session"];
+
+      console.log("🎵 [Recent Tracks] Auth details:", {
+        username: user?.lastfmUsername,
+        hasSessionKey: !!sessionKey,
+      });
+
+      if (!user?.lastfmUsername || !sessionKey) {
+        console.log("🎵 [Recent Tracks] Missing credentials");
+        return res.status(404).json({ error: "User not connected" });
+      }
+
+      const { limit = 50, page = 1 } = req.query;
+
+      const apiUrl = new URL("http://ws.audioscrobbler.com/2.0/");
+      apiUrl.searchParams.set("method", "user.getrecenttracks");
+      apiUrl.searchParams.set("user", user.lastfmUsername);
+      apiUrl.searchParams.set("api_key", process.env.LASTFM_API_KEY);
+      apiUrl.searchParams.set("sk", sessionKey);
+      apiUrl.searchParams.set("format", "json");
+      apiUrl.searchParams.set(
+        "limit",
+        Math.min(Math.max(1, Number(limit)), 200).toString()
+      );
+      apiUrl.searchParams.set("page", Math.max(1, Number(page)).toString());
+      apiUrl.searchParams.set("extended", "1");
+
+      console.log("🎵 [Recent Tracks] Last.fm API URL:", apiUrl.toString());
+
+      const response = await fetch(apiUrl.toString());
+      console.log(
+        "🎵 [Recent Tracks] Last.fm API response status:",
+        response.status
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("🎵 [Recent Tracks] Last.fm API error:", error);
+        throw new Error(`Last.fm API error: ${error.message}`);
+      }
+
+      const data = await response.json();
+      console.log("🎵 [Recent Tracks] Last.fm API response data:", {
+        hasData: !!data,
+        trackCount: data?.recenttracks?.track?.length,
+        metadata: data?.recenttracks?.["@attr"],
+      });
+
+      if (data.error) {
+        console.error("🎵 [Recent Tracks] Last.fm API returned error:", {
+          code: data.error,
+          message: data.message,
+        });
+        throw new Error(`Last.fm API error (${data.error}): ${data.message}`);
+      }
+
+      const formattedResponse = {
+        tracks: data.recenttracks.track || [],
+        meta: {
+          page: Number(data.recenttracks["@attr"]?.page || 1),
+          perPage: Number(data.recenttracks["@attr"]?.perPage || limit),
+          total: Number(data.recenttracks["@attr"]?.total || 0),
+          totalPages: Number(data.recenttracks["@attr"]?.totalPages || 1),
+          user: data.recenttracks["@attr"]?.user,
+        },
+      };
+
+      console.log("🎵 [Recent Tracks] Sending response:", {
+        trackCount: formattedResponse.tracks.length,
+        metadata: formattedResponse.meta,
+      });
+
+      res.json(formattedResponse);
+    } catch (error) {
+      console.error("🎵 [Recent Tracks] Error:", {
+        message: error.message,
+        stack: error.stack,
+      });
+      res.status(500).json({
+        error: "Failed to fetch recent tracks",
+        message: error.message,
+      });
     }
-
-    const period = req.query.period || "7day"; // overall, 12month, 6month, 3month, 1month, 7day
-
-    const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=${period}`
-    );
-    const data = await response.json();
-    res.json(data.toptracks);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch top tracks" });
   }
-});
+);
+
+app.get(
+  "/api/lastfm/status",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+
+      if (!user?.lastfmUsername) {
+        return res.json({ connected: false });
+      }
+
+      const userInfo = await fetch(
+        `http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json`
+      ).then((r) => r.json());
+
+      return res.json({
+        connected: true,
+        username: user.lastfmUsername,
+        userInfo: userInfo.user,
+      });
+    } catch (error) {
+      console.error("Status check error:", error);
+      return res.status(500).json({ connected: false, error: error.message });
+    }
+  }
+);
+
+app.get(
+  "/api/lastfm/user/top-tracks",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      if (!user?.lastfmUsername) {
+        return res.status(404).json({ error: "User not connected" });
+      }
+
+      const period = req.query.period || "7day"; // overall, 12month, 6month, 3month, 1month, 7day
+
+      const response = await fetch(
+        `http://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50&period=${period}`
+      );
+      const data = await response.json();
+      res.json(data.toptracks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch top tracks" });
+    }
+  }
+);
+
+app.get(
+  "/api/lastfm/scrobbles-today",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      if (!user?.lastfmUsername) {
+        return res.status(404).json({ error: "User not connected" });
+      }
+
+      const response = await fetch(
+        `http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${
+          user.lastfmUsername
+        }&api_key=${process.env.LASTFM_API_KEY}&format=json&from=${Math.floor(
+          new Date().setHours(0, 0, 0, 0) / 1000
+        )}`
+      );
+      const data = await response.json();
+      const scrobblesToday = data.recenttracks.track.length;
+
+      res.json({ scrobblesToday });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch scrobbles today" });
+    }
+  }
+);
+
+app.get(
+  "/api/lastfm/weekly-artists",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      if (!user?.lastfmUsername) {
+        return res.status(404).json({ error: "User not connected" });
+      }
+
+      const response = await fetch(
+        `http://ws.audioscrobbler.com/2.0/?method=user.getweeklyartistchart&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json`
+      );
+      const data = await response.json();
+      const weeklyArtists = data.weeklyartistchart.artist.length;
+
+      res.json({ weeklyArtists });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch weekly artists" });
+    }
+  }
+);
 
 async function getLastFmSession(token) {
   const params = {
@@ -619,22 +728,116 @@ app.get("/auth/lastfm/callback", async (req, res) => {
   }
 });
 
-app.get("/api/lastfm/now-playing", verifyToken, async (req, res) => {
-  try {
-    const credentials = await lastFmService.getCredentials(req.user.userId);
-    if (!credentials) {
-      return res.json({ playing: false });
+app.get(
+  "/api/lastfm/now-playing",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const credentials = await lastFmService.getCredentials(req.user.userId);
+      if (!credentials) {
+        return res.json({ playing: false });
+      }
+
+      const response = await fetch(
+        `${lastFmService.API_URL}?method=user.getrecenttracks&user=${credentials.username}&api_key=${lastFmService.API_KEY}&format=json&limit=1`
+      );
+
+      const data = await response.json();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch now playing" });
     }
+  }
+);
 
-    const response = await fetch(
-      `${lastFmService.API_URL}?method=user.getrecenttracks&user=${credentials.username}&api_key=${lastFmService.API_KEY}&format=json&limit=1`
-    );
-
-    const data = await response.json();
+// Remove validateAuthHeader from this route and simplify it
+app.get("/auth/spotify", (req, res, next) => {
+  try {
+    passport.authenticate("spotify", {
+      scope: [
+        "user-read-email",
+        "user-read-private",
+        "user-read-playback-state",
+        "user-read-currently-playing",
+      ],
+      showDialog: true,
+    })(req, res, next);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch now playing" });
+    console.error("Spotify auth error:", error);
+    res.status(500).json({ error: "Authentication failed" });
   }
 });
+
+// Update callback route
+app.get(
+  "/auth/spotify/callback",
+  (req, res, next) => {
+    // Verify state matches userId from session
+    if (req.query.state !== req.session?.userId) {
+      return res.redirect(
+        `${process.env.CLIENT_URL}/dashboard/spotify?error=state_mismatch`
+      );
+    }
+    next();
+  },
+  passport.authenticate("spotify", { failureRedirect: "/login" }),
+  async function (req, res) {
+    try {
+      console.log("Spotify callback received:", {
+        hasUser: !!req.user,
+        hasTokens: !!req.user?.tokens,
+        userId: req.session?.userId,
+      });
+
+      if (!req.session?.userId) {
+        throw new Error("No user ID in session");
+      }
+
+      const { accessToken, refreshToken, expiresIn } = req.user.tokens;
+
+      // Update user in database
+      await User.findByIdAndUpdate(req.session.userId, {
+        spotifyConnected: true,
+        spotifyAccessToken: accessToken,
+        spotifyRefreshToken: refreshToken,
+        spotifyTokenExpiry: new Date(Date.now() + expiresIn * 1000),
+      });
+
+      const redirectUrl = new URL(
+        `${process.env.CLIENT_URL}/dashboard/spotify`
+      );
+      redirectUrl.searchParams.set("spotify_connected", "true");
+      redirectUrl.searchParams.set("spotify_access_token", accessToken);
+      redirectUrl.searchParams.set("spotify_refresh_token", refreshToken);
+      redirectUrl.searchParams.set("spotify_expires_in", expiresIn);
+
+      res.redirect(redirectUrl.toString());
+    } catch (error) {
+      console.error("Spotify callback error:", error);
+      res.redirect(
+        `${process.env.CLIENT_URL}/dashboard/spotify?error=auth_failed`
+      );
+    }
+  }
+);
+
+// Add a route to check Spotify connection status
+app.get(
+  "/api/spotify/status",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.user.userId);
+      res.json({
+        connected: !!user.spotifyConnected,
+        profile: user.spotifyProfile,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get Spotify status" });
+    }
+  }
+);
 
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
