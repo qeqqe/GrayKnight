@@ -835,6 +835,50 @@ app.get(
     }
   }
 );
+
+app.post(
+  "/api/spotify/refresh",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      const { refresh_token } = req.body;
+      if (!refresh_token) {
+        return res.status(400).json({ error: "Refresh token is required" });
+      }
+
+      const params = new URLSearchParams();
+      params.append("grant_type", "refresh_token");
+      params.append("refresh_token", refresh_token);
+
+      const response = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${Buffer.from(
+            `${process.env.SPOTIFY_API_KEY}:${process.env.SPOTIFY_SECRET}`
+          ).toString("base64")}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error_description || "Failed to refresh token");
+      }
+
+      res.json({
+        access_token: data.access_token,
+        expires_in: data.expires_in,
+      });
+    } catch (error) {
+      console.error("Token refresh error:", error);
+      res.status(500).json({ error: "Failed to refresh token" });
+    }
+  }
+);
+
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });

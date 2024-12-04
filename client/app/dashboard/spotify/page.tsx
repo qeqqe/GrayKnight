@@ -36,18 +36,59 @@ const SpotifyDashboard = () => {
   const [otherUserData, setOtherUserData] = useState<spotifyOtherData | null>(
     null
   );
-  const checkTokenExpiration = () => {
+
+  const refreshSpotifyToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem("spotify_refresh_token");
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/refresh`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to refresh token");
+
+      const data = await response.json();
+
+      localStorage.setItem("spotify_access_token", data.access_token);
+      localStorage.setItem(
+        "spotify_token_expiry",
+        (Date.now() + data.expires_in * 1000).toString()
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Failed to refresh Spotify token:", error);
+      return false;
+    }
+  };
+
+  const checkTokenExpiration = async () => {
     const expiryTime = localStorage.getItem("spotify_token_expiry");
     if (!expiryTime) return false;
 
-    const hasExpired = Date.now() > parseInt(expiryTime);
+    const hasExpired = Date.now() > parseInt(expiryTime) - 300000;
+
     if (hasExpired) {
-      localStorage.removeItem("spotify_access_token");
-      localStorage.removeItem("spotify_refresh_token");
-      localStorage.removeItem("spotify_token_expiry");
-      setIsConnected(false);
+      const refreshSuccess = await refreshSpotifyToken();
+      if (!refreshSuccess) {
+        localStorage.removeItem("spotify_access_token");
+        localStorage.removeItem("spotify_refresh_token");
+        localStorage.removeItem("spotify_token_expiry");
+        setIsConnected(false);
+        return false;
+      }
+      return true;
     }
-    return !hasExpired;
+    return true;
   };
 
   useEffect(() => {
@@ -57,8 +98,9 @@ const SpotifyDashboard = () => {
         localStorage.getItem("spotify_refresh_token")
       );
 
-      if (hasTokens && checkTokenExpiration()) {
-        setIsConnected(true);
+      if (hasTokens) {
+        const isValid = await checkTokenExpiration();
+        setIsConnected(isValid);
         return;
       }
 
@@ -82,11 +124,7 @@ const SpotifyDashboard = () => {
 
     checkConnection();
 
-    const interval = setInterval(() => {
-      if (!checkTokenExpiration()) {
-        checkConnection();
-      }
-    }, 60000);
+    const interval = setInterval(checkConnection, 60000);
 
     return () => clearInterval(interval);
   }, []);
@@ -144,7 +182,7 @@ const SpotifyDashboard = () => {
       });
 
       const data = await response.json();
-      console.log("Spotify user data:", data); // Add this for debugging
+      console.log("Spotify user data:", data);
 
       setSpotifyData({
         display_name: data.display_name,
@@ -152,10 +190,9 @@ const SpotifyDashboard = () => {
         email: data.email,
       });
 
-      // Set profile image directly from the main API response
       setOtherUserData({
         followers: data.followers,
-        images: data.images || [], // Ensure images is always an array
+        images: data.images || [],
       });
     };
 
