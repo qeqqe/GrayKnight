@@ -8,16 +8,60 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
+
+interface spotifyData {
+  display_name: string;
+  country: string;
+  email: string;
+}
+
+interface spotifyOtherData {
+  followers: {
+    total: number;
+  };
+  images: {
+    url: string;
+    height: number;
+    width: number;
+  }[];
+}
 
 const SpotifyDashboard = () => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [spotifyData, setSpotifyData] = useState<spotifyData | null>(null);
+  const [otherUserData, setOtherUserData] = useState<spotifyOtherData | null>(
+    null
+  );
+  const checkTokenExpiration = () => {
+    const expiryTime = localStorage.getItem("spotify_token_expiry");
+    if (!expiryTime) return false;
+
+    const hasExpired = Date.now() > parseInt(expiryTime);
+    if (hasExpired) {
+      localStorage.removeItem("spotify_access_token");
+      localStorage.removeItem("spotify_refresh_token");
+      localStorage.removeItem("spotify_token_expiry");
+      setIsConnected(false);
+    }
+    return !hasExpired;
+  };
 
   useEffect(() => {
-    // Check connection status on mount
-    const checkSpotifyStatus = async () => {
+    const checkConnection = async () => {
+      const hasTokens = !!(
+        localStorage.getItem("spotify_access_token") &&
+        localStorage.getItem("spotify_refresh_token")
+      );
+
+      if (hasTokens && checkTokenExpiration()) {
+        setIsConnected(true);
+        return;
+      }
+
       try {
         const token = localStorage.getItem("token");
         const response = await fetch(
@@ -32,49 +76,93 @@ const SpotifyDashboard = () => {
         setIsConnected(data.connected);
       } catch (error) {
         console.error("Failed to check Spotify status:", error);
+        setIsConnected(false);
       }
     };
 
-    checkSpotifyStatus();
+    checkConnection();
 
-    // Handle redirect params
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
+    const interval = setInterval(() => {
+      if (!checkTokenExpiration()) {
+        checkConnection();
+      }
+    }, 60000);
 
-      if (params.get("error")) {
-        setError(params.get("error"));
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("error")) {
+      setError(params.get("error"));
+      setIsConnected(false);
+      return;
+    }
+
+    if (params.get("spotify_connected") === "true") {
+      try {
+        localStorage.setItem(
+          "spotify_access_token",
+          params.get("spotify_access_token") || ""
+        );
+        localStorage.setItem(
+          "spotify_refresh_token",
+          params.get("spotify_refresh_token") || ""
+        );
+        localStorage.setItem(
+          "spotify_token_expiry",
+          (
+            Date.now() +
+            parseInt(params.get("spotify_expires_in") || "0") * 1000
+          ).toString()
+        );
+        setIsConnected(true);
+        router.replace("/dashboard");
+        localStorage.setItem("onPage", "spotify");
+      } catch (error) {
+        console.error("Failed to store Spotify tokens:", error);
+        setError("Failed to complete Spotify connection");
+        setIsConnected(false);
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const getSpotifyUserData = async () => {
+      if (!checkTokenExpiration()) {
         return;
       }
 
-      if (params.get("spotify_connected") === "true") {
-        try {
-          localStorage.setItem(
-            "spotify_access_token",
-            params.get("spotify_access_token") || ""
-          );
-          localStorage.setItem(
-            "spotify_refresh_token",
-            params.get("spotify_refresh_token") || ""
-          );
-          localStorage.setItem(
-            "spotify_token_expiry",
-            (
-              Date.now() +
-              parseInt(params.get("spotify_expires_in") || "0") * 1000
-            ).toString()
-          );
-          setIsConnected(true);
-          // Change this line to redirect to main dashboard
-          router.replace("/dashboard");
-          // Set onPage in localStorage to spotify
-          localStorage.setItem("onPage", "spotify");
-        } catch (error) {
-          console.error("Failed to store Spotify tokens:", error);
-          setError("Failed to complete Spotify connection");
-        }
-      }
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch("https://api.spotify.com/v1/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      console.log("Spotify user data:", data); // Add this for debugging
+
+      setSpotifyData({
+        display_name: data.display_name,
+        country: data.country,
+        email: data.email,
+      });
+
+      // Set profile image directly from the main API response
+      setOtherUserData({
+        followers: data.followers,
+        images: data.images || [], // Ensure images is always an array
+      });
+    };
+
+    if (isConnected) {
+      getSpotifyUserData();
     }
-  }, []);
+  }, [isConnected]);
 
   const handleSpotifyConnect = () => {
     const token =
@@ -82,32 +170,52 @@ const SpotifyDashboard = () => {
         ? window.localStorage.getItem("token")
         : null;
 
-    // Direct redirect with token in query parameter
     window.location.href = `${
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
     }/auth/spotify?token=${token}`;
   };
 
   return (
-    <Card className="border-dashed">
-      <CardHeader className="text-center">
-        <CardTitle>
-          {isConnected ? "Spotify Connected!" : "Connect Your Spotify Account"}
-        </CardTitle>
-        <CardDescription>
-          {isConnected
-            ? "Your Spotify account is connected and ready to use"
-            : "Connect your Spotify account to access your playlists and more"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex justify-center pb-6">
-        {!isConnected && (
-          <Button size="lg" className="gap-2" onClick={handleSpotifyConnect}>
-            Connect with Spotify
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+    <>
+      {!isConnected ? (
+        <Card className="border-dashed">
+          <CardHeader className="text-center">
+            <CardTitle>Connect Your Spotify Account</CardTitle>
+            <CardDescription>
+              Connect your Spotify account to access your playlists and more
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center pb-6">
+            <Button size="lg" className="gap-2" onClick={handleSpotifyConnect}>
+              Connect with Spotify
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border">
+          <Avatar className="mx-auto my-6">
+            <AvatarImage
+              src={otherUserData?.images?.[0]?.url || "/default-avatar.png"}
+              alt="Spotify Avatar"
+            />
+            <AvatarFallback>
+              {spotifyData?.display_name ? spotifyData.display_name[0] : "S"}
+            </AvatarFallback>
+          </Avatar>
+          {spotifyData && (
+            <CardContent className="text-center">
+              <h3 className="font-medium">{spotifyData.display_name}</h3>
+              <p className="text-sm text-muted-foreground">
+                {spotifyData.email}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {spotifyData.country}
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
+    </>
   );
 };
 
