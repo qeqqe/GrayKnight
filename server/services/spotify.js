@@ -1,6 +1,5 @@
 const passport = require("passport");
 const SpotifyStrategy = require("passport-spotify").Strategy;
-const User = require("../model/User");
 require("dotenv").config();
 
 function configurePassport() {
@@ -10,13 +9,22 @@ function configurePassport() {
         clientID: process.env.SPOTIFY_API_KEY,
         clientSecret: process.env.SPOTIFY_SECRET,
         callbackURL: process.env.SPOTIFY_CALLBACK_URL,
+        passReqToCallback: true,
       },
-      async function (accessToken, refreshToken, expires_in, profile, done) {
+      async function (
+        req,
+        accessToken,
+        refreshToken,
+        expires_in,
+        profile,
+        done
+      ) {
         try {
-          // Store the tokens and profile
+          console.log("Spotify auth callback received");
           return done(null, {
             tokens: { accessToken, refreshToken, expiresIn: expires_in },
             profile: profile,
+            connected: true,
           });
         } catch (error) {
           return done(error);

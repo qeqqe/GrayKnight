@@ -16,7 +16,28 @@ const SpotifyDashboard = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Check for browser environment
+    // Check connection status on mount
+    const checkSpotifyStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/status`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const data = await response.json();
+        setIsConnected(data.connected);
+      } catch (error) {
+        console.error("Failed to check Spotify status:", error);
+      }
+    };
+
+    checkSpotifyStatus();
+
+    // Handle redirect params
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
 
@@ -27,15 +48,15 @@ const SpotifyDashboard = () => {
 
       if (params.get("spotify_connected") === "true") {
         try {
-          window.localStorage.setItem(
+          localStorage.setItem(
             "spotify_access_token",
             params.get("spotify_access_token") || ""
           );
-          window.localStorage.setItem(
+          localStorage.setItem(
             "spotify_refresh_token",
             params.get("spotify_refresh_token") || ""
           );
-          window.localStorage.setItem(
+          localStorage.setItem(
             "spotify_token_expiry",
             (
               Date.now() +
@@ -43,7 +64,10 @@ const SpotifyDashboard = () => {
             ).toString()
           );
           setIsConnected(true);
-          router.replace("/dashboard/spotify");
+          // Change this line to redirect to main dashboard
+          router.replace("/dashboard");
+          // Set onPage in localStorage to spotify
+          localStorage.setItem("onPage", "spotify");
         } catch (error) {
           console.error("Failed to store Spotify tokens:", error);
           setError("Failed to complete Spotify connection");
@@ -68,7 +92,7 @@ const SpotifyDashboard = () => {
     <Card className="border-dashed">
       <CardHeader className="text-center">
         <CardTitle>
-          {isConnected ? "Spotify Connected" : "Connect Your Spotify Account"}
+          {isConnected ? "Spotify Connected!" : "Connect Your Spotify Account"}
         </CardTitle>
         <CardDescription>
           {isConnected

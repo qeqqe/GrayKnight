@@ -9,13 +9,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/providers/AuthProvider";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LastFmDashboard from "./lastfm/page";
 import SpotifyDashboard from "./spotify/page";
 
 const DashboardPage = () => {
   const { logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'lastfm' | 'spotify'>('lastfm');
+  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<"lastfm" | "spotify">("lastfm");
+
+  useEffect(() => {
+    const savedTab = localStorage.getItem("onPage") as "lastfm" | "spotify";
+    if (savedTab) {
+      setActiveTab(savedTab);
+    }
+    setMounted(true);
+  }, []);
+
+  const handleTabChange = (tab: "lastfm" | "spotify") => {
+    setActiveTab(tab);
+    localStorage.setItem("onPage", tab);
+  };
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className="h-screen bg-background">
@@ -24,20 +42,28 @@ const DashboardPage = () => {
           <div className="flex items-center gap-6">
             <h1 className="text-xl font-semibold">GrayKnight</h1>
             <nav className="hidden md:flex items-center gap-6">
-                <Button
-                variant={activeTab === 'lastfm' ? 'default' : 'ghost'}
-                className={`text-red-600 ${activeTab === 'lastfm' ? 'shadow-[0_0_10px_rgba(255,0,0,0.5)]' : ''}`}
-                onClick={() => setActiveTab('lastfm')}
-                >
+              <Button
+                variant={activeTab === "lastfm" ? "default" : "ghost"}
+                className={`text-red-600 ${
+                  activeTab === "lastfm"
+                    ? "shadow-[0_0_10px_rgba(255,0,0,0.5)]"
+                    : ""
+                }`}
+                onClick={() => handleTabChange("lastfm")}
+              >
                 Last.fm
-                </Button>
-                <Button
-                variant={activeTab === 'spotify' ? 'default' : 'ghost'}
-                className={`text-green-600 ${activeTab === 'spotify' ? 'shadow-[0_0_10px_rgba(0,255,0,0.5)]' : ''}`}
-                onClick={() => setActiveTab('spotify')}
-                >
+              </Button>
+              <Button
+                variant={activeTab === "spotify" ? "default" : "ghost"}
+                className={`text-green-600 ${
+                  activeTab === "spotify"
+                    ? "shadow-[0_0_10px_rgba(0,255,0,0.5)]"
+                    : ""
+                }`}
+                onClick={() => handleTabChange("spotify")}
+              >
                 Spotify
-                </Button>
+              </Button>
             </nav>
           </div>
           <div className="ml-auto flex items-center gap-4">
@@ -62,7 +88,7 @@ const DashboardPage = () => {
       </div>
 
       <main className="container p-4 md:p-8">
-        {activeTab === 'lastfm' ? <LastFmDashboard /> : <SpotifyDashboard />}
+        {activeTab === "lastfm" ? <LastFmDashboard /> : <SpotifyDashboard />}
       </main>
     </div>
   );
