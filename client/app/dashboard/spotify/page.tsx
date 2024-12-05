@@ -73,12 +73,99 @@ const SpotifyDashboard = () => {
   const [otherUserData, setOtherUserData] = useState<spotifyOtherData | null>(
     null
   );
-  const [following, setFollowing] = useState<SpotifyArtist[]>([]);
-  const [isFollowingModalOpen, setIsFollowingModalOpen] = useState(false);
-  const [followingCount, setFollowingCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Add this effect with higher priority (before other effects)
+  const refreshSpotifyToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem("spotify_refresh_token");
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/refresh`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to refresh token");
+
+      const data = await response.json();
+
+      localStorage.setItem("spotify_access_token", data.access_token);
+      localStorage.setItem(
+        "spotify_token_expiry",
+        (Date.now() + data.expires_in * 1000).toString()
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Failed to refresh Spotify token:", error);
+      return false;
+    }
+  };
+
+  const checkTokenExpiration = async () => {
+    const expiryTime = localStorage.getItem("spotify_token_expiry");
+    if (!expiryTime) return false;
+
+    const hasExpired = Date.now() > parseInt(expiryTime) - 300000;
+
+    if (hasExpired) {
+      const refreshSuccess = await refreshSpotifyToken();
+      if (!refreshSuccess) {
+        localStorage.removeItem("spotify_access_token");
+        localStorage.removeItem("spotify_refresh_token");
+        localStorage.removeItem("spotify_token_expiry");
+        setIsConnected(false);
+        return false;
+      }
+      return true;
+    }
+    return true;
+  };
+
+  useEffect(() => {
+    const checkConnection = async () => {
+      const hasTokens = !!(
+        localStorage.getItem("spotify_access_token") &&
+        localStorage.getItem("spotify_refresh_token")
+      );
+
+      if (hasTokens) {
+        const isValid = await checkTokenExpiration();
+        setIsConnected(isValid);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/status`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const data = await response.json();
+        setIsConnected(data.connected);
+      } catch (error) {
+        console.error("Failed to check Spotify status:", error);
+        setIsConnected(false);
+      }
+    };
+
+    checkConnection();
+
+    const interval = setInterval(checkConnection, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -166,64 +253,26 @@ const SpotifyDashboard = () => {
             return;
           }
 
-          const data = await SpotifyTokenManager.fetchWithToken(
-            "https://api.spotify.com/v1/me"
-          );
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch("https://api.spotify.com/v1/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-          if (data && isMounted) {
-            setSpotifyData({
-              display_name: data.display_name,
-              country: data.country,
-              email: data.email,
-            });
-            setOtherUserData({
-              followers: data.followers,
-              images: data.images || [],
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Connection check failed:", error);
-        if (isMounted) {
-          setIsConnected(false);
-          SpotifyTokenManager.clearTokens();
-        }
-      }
-    };
+      const data = await response.json();
+      console.log("Spotify user data:", data);
 
-    checkConnection();
-    const interval = setInterval(checkConnection, 60000); // Check every minute
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isConnected, spotifyData]);
+      setSpotifyData({
+        display_name: data.display_name,
+        country: data.country,
+        email: data.email,
+      });
 
-  // Remove or modify other useEffects that might interfere
-  // Keep only the following data effect
-  useEffect(() => {
-    if (!isConnected) return;
-    // ...existing following data fetch logic...
-    const getFollowingData = async () => {
-      if (!isConnected) return;
-      setIsLoading(true);
-
-      try {
-        const data = await SpotifyTokenManager.fetchWithToken(
-          "https://api.spotify.com/v1/me/following?type=artist&limit=20"
-        );
-
-        if (data?.artists?.items) {
-          setFollowing(data.artists.items);
-          setFollowingCount(data.artists.total);
-        }
-      } catch (error) {
-        console.error("Failed to fetch following data:", error);
-        setError("Failed to load following artists");
-        setIsConnected(false);
-      } finally {
-        setIsLoading(false);
-      }
+      setOtherUserData({
+        followers: data.followers,
+        images: data.images || [],
+      });
     };
 
     if (isConnected) {
