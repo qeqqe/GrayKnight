@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -128,7 +128,6 @@ interface SpotifyImage {
   width: number | null;
 }
 
-// Add this interface with the other interfaces
 interface SpotifyPlaylistTrack {
   track: {
     id: string;
@@ -147,6 +146,13 @@ interface SpotifyPlaylistTrack {
     };
   };
   added_at: string;
+}
+
+// Add this interface with the other interfaces
+interface PlaylistResponse {
+  items: SpotifyPlaylistTrack[];
+  next: string | null;
+  total: number;
 }
 
 const TrackCard = ({ track }: { track: spotifyTrack }) => {
@@ -310,7 +316,6 @@ const TrackCard = ({ track }: { track: spotifyTrack }) => {
   );
 };
 
-// Add this component before SpotifyDashboard
 const PlaylistDialog = ({
   playlist,
   isOpen,
@@ -322,31 +327,60 @@ const PlaylistDialog = ({
 }) => {
   const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const loadingRef = useRef<HTMLDivElement>(null);
+
+  const fetchTracks = async (url: string) => {
+    try {
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch tracks");
+
+      const data: PlaylistResponse = await response.json();
+      setTracks((prev) => [...prev, ...data.items]);
+      setNextUrl(data.next);
+      setHasMore(!!data.next);
+    } catch (error) {
+      console.error("Failed to fetch playlist tracks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchTracks = async () => {
-      if (!isOpen) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && nextUrl) {
+          setLoading(true);
+          fetchTracks(nextUrl);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (loadingRef.current) {
+      observer.observe(loadingRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loading, nextUrl]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setTracks([]);
+      setNextUrl(null);
+      setHasMore(true);
       setLoading(true);
-      try {
-        const token = localStorage.getItem("spotify_access_token");
-        const response = await fetch(`${playlist.tracks.href}?limit=50`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      return;
+    }
 
-        if (!response.ok) throw new Error("Failed to fetch tracks");
-
-        const data = await response.json();
-        setTracks(data.items);
-      } catch (error) {
-        console.error("Failed to fetch playlist tracks:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTracks();
+    fetchTracks(`${playlist.tracks.href}?limit=50`);
   }, [playlist.tracks.href, isOpen]);
 
   return (
@@ -381,53 +415,53 @@ const PlaylistDialog = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto mt-4 spotify-scrollbar">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
-            </div>
-          ) : (
-            <div className="space-y-2 px-6">
-              {tracks.map((item, index) => (
-                <div
-                  key={item.track.id + index}
-                  className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-md group"
-                >
-                  <img
-                    src={item.track.album.images[2]?.url || "/placeholder.png"}
-                    alt={item.track.album.name}
-                    className="w-10 h-10 object-cover rounded"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white truncate">
-                      {item.track.name}
-                    </p>
-                    <p className="text-sm text-zinc-400 truncate">
-                      {item.track.artists.map((a) => a.name).join(", ")}
-                    </p>
-                  </div>
-                  <div className="text-zinc-500 text-sm">
-                    {Math.floor(item.track.duration_ms / 60000)}:
-                    {((item.track.duration_ms % 60000) / 1000)
-                      .toFixed(0)
-                      .padStart(2, "0")}
-                  </div>
-                  {item.track.external_urls.spotify && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(item.track.external_urls.spotify, "_blank");
-                      }}
-                    >
-                      Play
-                    </Button>
-                  )}
+          <div className="space-y-2 px-6">
+            {tracks.map((item, index) => (
+              <div
+                key={item.track.id + index}
+                className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-md group"
+              >
+                <img
+                  src={item.track.album.images[2]?.url || "/placeholder.png"}
+                  alt={item.track.album.name}
+                  className="w-10 h-10 object-cover rounded"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-white truncate">
+                    {item.track.name}
+                  </p>
+                  <p className="text-sm text-zinc-400 truncate">
+                    {item.track.artists.map((a) => a.name).join(", ")}
+                  </p>
                 </div>
-              ))}
+                <div className="text-zinc-500 text-sm">
+                  {Math.floor(item.track.duration_ms / 60000)}:
+                  {((item.track.duration_ms % 60000) / 1000)
+                    .toFixed(0)
+                    .padStart(2, "0")}
+                </div>
+                {item.track.external_urls.spotify && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(item.track.external_urls.spotify, "_blank");
+                    }}
+                  >
+                    Play
+                  </Button>
+                )}
+              </div>
+            ))}
+
+            <div ref={loadingRef} className="py-4 flex justify-center">
+              {loading && (
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
+              )}
             </div>
-          )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
