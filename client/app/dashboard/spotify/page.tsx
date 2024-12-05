@@ -10,19 +10,48 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { SpotifyTokenManager } from "@/utils/spotify.utils";
+interface spotifyTrack {
+  id: string;
+  name: string;
+  duration_ms: number;
+  explicit: boolean;
+
+  artists: {
+    external_urls: {
+      spotify: string;
+    };
+    href: string;
+    id: string;
+    name: string;
+    type: string;
+    uri: string;
+  }[];
+
+  album: {
+    album_type: string;
+    name: string;
+    images: {
+      url: string;
+      height?: number;
+      width?: number;
+    }[];
+    external_urls: {
+      spotify: string;
+    };
+    release_date: string;
+    release_date_precision: "year" | "month" | "day";
+  };
+
+  preview_url: string | null;
+  popularity?: number;
+}
 
 interface spotifyData {
   display_name: string;
   country: string;
   email: string;
+  id: string;
+  uri: string;
 }
 
 interface spotifyOtherData {
@@ -36,35 +65,6 @@ interface spotifyOtherData {
   }[];
 }
 
-interface SpotifyArtist {
-  external_urls: {
-    spotify: string;
-  };
-  id: string;
-  name: string;
-  images: { url: string; height: number; width: number }[];
-  genres: string[];
-  followers: { href: string | null; total: number };
-  href: string;
-  popularity: number;
-  type: string;
-  uri: string;
-}
-
-interface FollowingData {
-  artists: {
-    href: string;
-    limit: number;
-    next: string | null;
-    cursors: {
-      after: string;
-      before: string;
-    };
-    total: number;
-    items: SpotifyArtist[];
-  };
-}
-
 const SpotifyDashboard = () => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -73,22 +73,13 @@ const SpotifyDashboard = () => {
   const [otherUserData, setOtherUserData] = useState<spotifyOtherData | null>(
     null
   );
+  const [currentTrack, setCurrentTrack] = useState<spotifyTrack | null>(null);
 
   const refreshSpotifyToken = async () => {
     try {
       const refreshToken = localStorage.getItem("spotify_refresh_token");
-      const token = localStorage.getItem("token");
-
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/refresh`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        }
+        `${process.env.NEXT_PUBLIC_API_URL}/refresh_token?refresh_token=${refreshToken}`
       );
 
       if (!response.ok) throw new Error("Failed to refresh token");
@@ -129,129 +120,114 @@ const SpotifyDashboard = () => {
   };
 
   useEffect(() => {
-    const checkConnection = async () => {
-      const hasTokens = !!(
-        localStorage.getItem("spotify_access_token") &&
-        localStorage.getItem("spotify_refresh_token")
-      );
-
-      if (hasTokens) {
-        const isValid = await checkTokenExpiration();
-        setIsConnected(isValid);
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/spotify/status`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        const data = await response.json();
-        setIsConnected(data.connected);
-      } catch (error) {
-        console.error("Failed to check Spotify status:", error);
-        setIsConnected(false);
-      }
-    };
-
-    checkConnection();
-
-    const interval = setInterval(checkConnection, 60000);
-
-    return () => clearInterval(interval);
+    const spotifyConnected =
+      localStorage.getItem("spotify_connected") === "true";
+    setIsConnected(spotifyConnected);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    console.log("Initial URL check:", {
-      params: Object.fromEntries(params.entries()),
-      isConnected: params.get("spotify_connected"),
-    });
 
-    // Immediately check for existing token
-    const existingToken = localStorage.getItem("spotify_access_token");
-    if (existingToken) {
-      console.log("Existing token found");
-      setIsConnected(true);
+    if (params.get("error")) {
+      setError(params.get("error"));
+      setIsConnected(false);
+      localStorage.setItem("spotify_connected", "false");
       return;
     }
 
     if (params.get("spotify_connected") === "true") {
       try {
-        const accessToken = params.get("spotify_access_token");
-        const refreshToken = params.get("spotify_refresh_token");
-        const expiresIn = params.get("spotify_expires_in");
-
-        console.log("Received new tokens:", {
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken,
-          expiresIn: expiresIn,
-        });
-
-        if (!accessToken || !refreshToken || !expiresIn) {
-          throw new Error("Missing tokens in OAuth response");
-        }
-
-        localStorage.setItem("spotify_access_token", accessToken);
-        localStorage.setItem("spotify_refresh_token", refreshToken);
+        localStorage.setItem(
+          "spotify_access_token",
+          params.get("spotify_access_token") || ""
+        );
+        localStorage.setItem(
+          "spotify_refresh_token",
+          params.get("spotify_refresh_token") || ""
+        );
         localStorage.setItem(
           "spotify_token_expiry",
-          (Date.now() + parseInt(expiresIn) * 1000).toString()
+          (
+            Date.now() +
+            parseInt(params.get("spotify_expires_in") || "0") * 1000
+          ).toString()
         );
-
+        localStorage.setItem("spotify_connected", "true");
         setIsConnected(true);
-        // Remove query parameters
-        window.history.replaceState({}, "", window.location.pathname);
+        router.replace("/dashboard");
+        localStorage.setItem("onPage", "spotify");
       } catch (error) {
-        console.error("OAuth handling failed:", error);
-        SpotifyTokenManager.clearTokens();
-        setIsConnected(false);
+        console.error("Failed to store Spotify tokens:", error);
         setError("Failed to complete Spotify connection");
+        setIsConnected(false);
+        localStorage.setItem("spotify_connected", "false");
       }
     }
-  }, []); // This effect runs first
+  }, [router]);
 
-  // Modify the connection check effect
   useEffect(() => {
-    if (!isConnected) return;
+    const fetchCurrentTrack = async () => {
+      if (!checkTokenExpiration()) {
+        return;
+      }
 
-    let isMounted = true;
-    const checkConnection = async () => {
+      const token = localStorage.getItem("spotify_access_token");
       try {
-        const token = await SpotifyTokenManager.getValidToken();
-        if (!token) {
-          if (isMounted) {
-            console.log("No valid token available");
-            setIsConnected(false);
-            return;
+        const response = await fetch(
+          "https://api.spotify.com/v1/me/player/currently-playing",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           }
+        );
+
+        console.log("Response status:", response.status);
+
+        if (response.status === 204) {
+          setCurrentTrack(null);
+          return;
         }
 
-        // Validate token explicitly if we need to fetch data
-        if (!spotifyData && isMounted) {
-          let isValid = false;
-          if (token) {
-            isValid = await SpotifyTokenManager.validateToken(token);
-            if (!isValid) {
-              console.log("Token validation failed");
-              setIsConnected(false);
-              SpotifyTokenManager.clearTokens();
-              return;
-            }
-          }
-          if (!isValid) {
-            console.log("Token validation failed");
-            setIsConnected(false);
-            SpotifyTokenManager.clearTokens();
-            return;
-          }
+        const data = await response.json();
+        if (data.item) {
+          const trackData: spotifyTrack = {
+            id: data.item.id,
+            name: data.item.name,
+            duration_ms: data.item.duration_ms,
+            explicit: data.item.explicit,
+            artists: data.item.artists,
+            album: data.item.album,
+            preview_url: data.item.preview_url,
+          };
+          setCurrentTrack(trackData);
+          console.log("Current track:", trackData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch current track:", error);
+      }
+    };
+
+    if (isConnected) {
+      fetchCurrentTrack();
+    }
+
+    const interval = setInterval(() => {
+      if (isConnected) {
+        fetchCurrentTrack();
+      }
+    }, 15 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isConnected]);
+
+  useEffect(() => {
+    const getSpotifyUserData = async () => {
+      if (!checkTokenExpiration()) {
+        return;
+      }
 
       const token = localStorage.getItem("spotify_access_token");
       const response = await fetch("https://api.spotify.com/v1/me", {
@@ -263,10 +239,14 @@ const SpotifyDashboard = () => {
       const data = await response.json();
       console.log("Spotify user data:", data);
 
+      localStorage.setItem("spotify_user_id", data.id);
+
       setSpotifyData({
         display_name: data.display_name,
         country: data.country,
         email: data.email,
+        id: data.id,
+        uri: data.uri,
       });
 
       setOtherUserData({
@@ -276,7 +256,7 @@ const SpotifyDashboard = () => {
     };
 
     if (isConnected) {
-      getFollowingData();
+      getSpotifyUserData();
     }
   }, [isConnected]);
 
@@ -293,120 +273,64 @@ const SpotifyDashboard = () => {
 
   return (
     <>
-      {!isConnected ? (
-        <Card className="border-dashed">
-          <CardHeader className="text-center">
-            <CardTitle>Connect Your Spotify Account</CardTitle>
-            <CardDescription>
-              Connect your Spotify account to access your playlists and more
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center pb-6">
-            <Button size="lg" className="gap-2" onClick={handleSpotifyConnect}>
-              Connect with Spotify
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <Card className="border max-w-[400px] p-6">
-            <CardHeader className="flex flex-row items-center gap-4">
-              <Avatar className="h-24 w-24">
+      <main>
+        {!isConnected ? (
+          <Card className="border-dashed">
+            <CardHeader className="text-center">
+              <CardTitle>Connect Your Spotify Account</CardTitle>
+              <CardDescription>
+                Connect your Spotify account to access your playlists and more
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center pb-6">
+              <Button
+                size="lg"
+                className="gap-2"
+                onClick={handleSpotifyConnect}
+              >
+                Connect with Spotify
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 sm:p-6 md:p-8 max-w-[28rem] ml-[5vh] hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 pointer-events-none" />
+            <div className="flex flex-row items-center gap-6 md:gap-8 relative z-10">
+              <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-green-500/20 hover:ring-green-500/40 transition-all duration-300 shadow-xl flex-shrink-0">
                 <AvatarImage
                   src={otherUserData?.images?.[0]?.url || "/default-avatar.png"}
                   alt="Spotify Avatar"
-                  className="h-full w-full object-cover"
+                  className="object-cover"
                 />
-                <AvatarFallback>
+                <AvatarFallback className="text-2xl md:text-4xl font-bold bg-gradient-to-br from-green-400 to-emerald-600">
                   {spotifyData?.display_name
                     ? spotifyData.display_name[0]
                     : "S"}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col">
-                <CardTitle>{spotifyData?.display_name}</CardTitle>
-                <CardDescription>Spotify User</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
               {spotifyData && (
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Country:</span>
-                    <span>{spotifyData.country}</span>
+                <CardContent className="p-0 space-y-3 md:space-y-4">
+                  <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                    {spotifyData.display_name}
+                  </h3>
+                  <div className="space-y-2">
+                    <p className="text-zinc-400 flex items-center gap-2">
+                      <span className="font-semibold text-lg md:text-xl text-white">
+                        {otherUserData?.followers?.total.toLocaleString()}
+                      </span>
+                      Followers
+                    </p>
+                    <p className="text-zinc-400">
+                      Location:{" "}
+                      <span className="text-white">{spotifyData.country}</span>
+                    </p>
                   </div>
-                  {/* <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Email:</span>
-                    <span>{spotifyData.email}</span>
-                  </div> */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Followers:</span>
-                    <span>{otherUserData?.followers.total}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Following:</span>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto"
-                      onClick={() => setIsFollowingModalOpen(true)}
-                    >
-                      {followingCount} artists
-                    </Button>
-                  </div>
-                </div>
+                </CardContent>
               )}
-            </CardContent>
+            </div>
           </Card>
-
-          <Dialog
-            open={isFollowingModalOpen}
-            onOpenChange={setIsFollowingModalOpen}
-          >
-            <DialogContent className="max-w-2xl max-h-[80vh]">
-              <DialogHeader>
-                <DialogTitle>Following Artists ({followingCount})</DialogTitle>
-              </DialogHeader>
-              <ScrollArea className="h-[60vh] pr-4">
-                {isLoading ? (
-                  <div className="flex justify-center p-4">Loading...</div>
-                ) : following.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-4 p-4">
-                    {following.map((artist) => (
-                      <div
-                        key={artist.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border"
-                      >
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage
-                            src={artist.images?.[0]?.url}
-                            alt={artist.name}
-                          />
-                          <AvatarFallback>{artist.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{artist.name}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {artist.followers.total.toLocaleString()} followers
-                          </span>
-                          {artist.genres.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {artist.genres.slice(0, 2).join(", ")}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex justify-center p-4">
-                    No artists found
-                  </div>
-                )}
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
-        </>
-      )}
+        )}
+      </main>
     </>
   );
 };

@@ -331,7 +331,6 @@ app.get("/api/lastfm/topartists", async (req, res) => {
     );
     const data = await response.json();
 
-    // Send the artist array from the correct path in the response
     res.json(data.topartists.artist || []);
   } catch (error) {
     console.error("🎸 Error fetching top artists:", error);
@@ -818,6 +817,62 @@ app.get(
     }
   }
 );
+
+app.get("/refresh_token", async (req, res) => {
+  try {
+    const refreshToken = req.query.refresh_token;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: "Refresh token is required" });
+    }
+
+    const params = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    });
+
+    const response = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            process.env.SPOTIFY_CLIENT_ID +
+              ":" +
+              process.env.SPOTIFY_CLIENT_SECRET
+          ).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error_description || "Failed to refresh token");
+    }
+
+    const data = await response.json();
+
+    if (req.user?.userId) {
+      await User.findByIdAndUpdate(req.user.userId, {
+        spotifyAccessToken: data.access_token,
+        spotifyTokenExpiry: new Date(Date.now() + data.expires_in * 1000),
+      });
+    }
+
+    res.json({
+      access_token: data.access_token,
+      expires_in: data.expires_in,
+    });
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    res.status(500).json({
+      error: "Failed to refresh token",
+      message:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+});
 
 app.get(
   "/api/spotify/status",
