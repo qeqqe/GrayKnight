@@ -148,11 +148,15 @@ interface SpotifyPlaylistTrack {
   added_at: string;
 }
 
-// Add this interface with the other interfaces
 interface PlaylistResponse {
   items: SpotifyPlaylistTrack[];
   next: string | null;
   total: number;
+}
+
+interface SpotifyQueue {
+  currently_playing: spotifyTrack | null;
+  queue: spotifyTrack[];
 }
 
 const TrackCard = ({ track }: { track: spotifyTrack }) => {
@@ -255,6 +259,22 @@ const TrackCard = ({ track }: { track: spotifyTrack }) => {
                   {track.artists.map((artist) => artist.name).join(", ")}
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-zinc-400">Time:</span>
+                  <span className="text-sm">
+                    {formattedProgress} / {formattedDuration}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-500 ease-linear"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <span className="text-zinc-400">Duration:</span>
@@ -480,6 +500,7 @@ const SpotifyDashboard = () => {
   const [playlists, setPlaylists] = useState<SpotifyPlaylistItem[]>([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [openPlaylistId, setOpenPlaylistId] = useState<string | null>(null);
+  const [queue, setQueue] = useState<spotifyTrack[]>([]);
 
   const refreshSpotifyToken = async () => {
     try {
@@ -786,9 +807,40 @@ const SpotifyDashboard = () => {
     fetchPlaylists();
   }, [isConnected, spotifyData?.id]);
 
+  const fetchQueue = async () => {
+    if (!checkTokenExpiration()) return;
+
+    try {
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch(
+        "https://api.spotify.com/v1/me/player/queue",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data: SpotifyQueue = await response.json();
+        setQueue(data.queue || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch queue:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isConnected) {
+      fetchQueue();
+      const interval = setInterval(fetchQueue, 30 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
   return (
     <>
-      <main className="space-y-6">
+      <main className="space-y-6 p-4">
         {!isConnected ? (
           <Card className="border-dashed">
             <CardHeader className="text-center">
@@ -812,98 +864,141 @@ const SpotifyDashboard = () => {
             </CardContent>
           </Card>
         ) : (
-          <>
-            <Card className="border bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 sm:p-6 md:p-8 max-w-[28rem] ml-[5vh] hover:shadow-xl transition-all duration-300 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 pointer-events-none" />
-              <div className="flex flex-row items-center gap-6 md:gap-8 relative z-10">
-                <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-green-500/20 hover:ring-green-500/40 transition-all duration-300 shadow-xl flex-shrink-0">
-                  <AvatarImage
-                    src={
-                      otherUserData?.images?.[0]?.url || "/default-avatar.png"
-                    }
-                    alt="Spotify Avatar"
-                    className="object-cover"
-                  />
-                  <AvatarFallback className="text-2xl md:text-4xl font-bold bg-gradient-to-br from-green-400 to-emerald-600">
-                    {spotifyData?.display_name
-                      ? spotifyData.display_name[0]
-                      : "S"}
-                  </AvatarFallback>
-                </Avatar>
-                {spotifyData && (
-                  <CardContent className="p-0 space-y-3 md:space-y-4">
-                    <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
-                      {spotifyData.display_name}
-                    </h3>
-                    <div className="space-y-2">
-                      <p className="text-zinc-400 flex items-center gap-2">
-                        <span className="font-semibold text-lg md:text-xl text-white">
-                          {otherUserData?.followers?.total.toLocaleString()}
-                        </span>
-                        Followers
-                      </p>
-                      <p className="text-zinc-400">
-                        Location:{" "}
-                        <span className="text-white">
-                          {spotifyData.country}
-                        </span>
-                      </p>
-                    </div>
-                  </CardContent>
-                )}
-              </div>
-            </Card>
-
-            {currentTrack && (
-              <div className="max-w-[28rem] ml-[5vh]">
-                <h2 className="text-xl font-semibold text-white mb-2">
-                  Currently Playing
-                </h2>
-                <TrackCard track={currentTrack} />
-              </div>
-            )}
-
-            {playlists.length > 0 && (
-              <div className="max-w-[28rem] ml-[5vh]">
-                <h2 className="text-xl font-semibold text-white mb-2">
-                  Your Playlists
-                </h2>
-                <div className="space-y-2">
-                  {playlists.map((playlist) => (
-                    <div key={playlist.id}>
-                      <Card
-                        className="bg-zinc-900/50 hover:bg-zinc-900 transition-colors cursor-pointer"
-                        onClick={() => setOpenPlaylistId(playlist.id)}
-                      >
-                        <CardContent className="flex items-center gap-3 p-3">
-                          <img
-                            src={playlist.images[0]?.url || "/placeholder.png"}
-                            alt={playlist.name}
-                            className="w-12 h-12 object-cover rounded"
-                          />
-                          <div>
-                            <h3 className="font-medium text-white">
-                              {playlist.name}
-                            </h3>
-                            <p className="text-sm text-zinc-400">
-                              {playlist.tracks.total} tracks
-                            </p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <PlaylistDialog
-                        playlist={playlist}
-                        isOpen={openPlaylistId === playlist.id}
-                        onOpenChange={(open) =>
-                          setOpenPlaylistId(open ? playlist.id : null)
-                        }
-                      />
-                    </div>
-                  ))}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <Card className="border bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 sm:p-6 md:p-8 hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 pointer-events-none" />
+                <div className="flex flex-row items-center gap-6 md:gap-8 relative z-10">
+                  <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-green-500/20 hover:ring-green-500/40 transition-all duration-300 shadow-xl flex-shrink-0">
+                    <AvatarImage
+                      src={
+                        otherUserData?.images?.[0]?.url || "/default-avatar.png"
+                      }
+                      alt="Spotify Avatar"
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="text-2xl md:text-4xl font-bold bg-gradient-to-br from-green-400 to-emerald-600">
+                      {spotifyData?.display_name
+                        ? spotifyData.display_name[0]
+                        : "S"}
+                    </AvatarFallback>
+                  </Avatar>
+                  {spotifyData && (
+                    <CardContent className="p-0 space-y-3 md:space-y-4">
+                      <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                        {spotifyData.display_name}
+                      </h3>
+                      <div className="space-y-2">
+                        <p className="text-zinc-400 flex items-center gap-2">
+                          <span className="font-semibold text-lg md:text-xl text-white">
+                            {otherUserData?.followers?.total.toLocaleString()}
+                          </span>
+                          Followers
+                        </p>
+                        <p className="text-zinc-400">
+                          Location:{" "}
+                          <span className="text-white">
+                            {spotifyData.country}
+                          </span>
+                        </p>
+                      </div>
+                    </CardContent>
+                  )}
                 </div>
-              </div>
-            )}
-          </>
+              </Card>
+
+              {playlists.length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    Your Playlists
+                  </h2>
+                  <div className="space-y-2">
+                    {playlists.map((playlist) => (
+                      <div key={playlist.id}>
+                        <Card
+                          className="bg-zinc-900/50 hover:bg-zinc-900 transition-colors cursor-pointer"
+                          onClick={() => setOpenPlaylistId(playlist.id)}
+                        >
+                          <CardContent className="flex items-center gap-3 p-3">
+                            <img
+                              src={
+                                playlist.images[0]?.url || "/placeholder.png"
+                              }
+                              alt={playlist.name}
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                            <div>
+                              <h3 className="font-medium text-white">
+                                {playlist.name}
+                              </h3>
+                              <p className="text-sm text-zinc-400">
+                                {playlist.tracks.total} tracks
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <PlaylistDialog
+                          playlist={playlist}
+                          isOpen={openPlaylistId === playlist.id}
+                          onOpenChange={(open) =>
+                            setOpenPlaylistId(open ? playlist.id : null)
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              {currentTrack && (
+                <div>
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    Currently Playing
+                  </h2>
+                  <TrackCard track={currentTrack} />
+                </div>
+              )}
+
+              {/* Queue Section */}
+              {queue.length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    Coming Up Next
+                  </h2>
+                  <div className="space-y-2 bg-zinc-900/50 rounded-lg p-4">
+                    {queue.slice(0, 5).map((track, index) => (
+                      <div
+                        key={track.id + index}
+                        className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-md group"
+                      >
+                        <img
+                          src={track.album.images[2]?.url || "/placeholder.png"}
+                          alt={track.album.name}
+                          className="w-10 h-10 object-cover rounded"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-white truncate">
+                            {track.name}
+                          </p>
+                          <p className="text-sm text-zinc-400 truncate">
+                            {track.artists.map((a) => a.name).join(", ")}
+                          </p>
+                        </div>
+                        <div className="text-zinc-500 text-sm">
+                          {Math.floor(track.duration_ms / 60000)}:
+                          {((track.duration_ms % 60000) / 1000)
+                            .toFixed(0)
+                            .padStart(2, "0")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </main>
     </>
