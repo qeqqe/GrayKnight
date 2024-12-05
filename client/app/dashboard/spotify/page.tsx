@@ -81,6 +81,74 @@ interface spotifyOtherData {
   }[];
 }
 
+interface SpotifyPlaylist {
+  href: string;
+  limit: number;
+  next: string;
+  offset: number;
+  previous: string;
+  total: number;
+  items: SpotifyPlaylistItem[];
+}
+
+interface SpotifyPlaylistItem {
+  collaborative: boolean;
+  description: string;
+  external_urls: {
+    spotify: string;
+  };
+  href: string;
+  id: string;
+  images: SpotifyImage[];
+  name: string;
+  owner: {
+    display_name: string;
+    external_urls: {
+      spotify: string;
+    };
+    href: string;
+    id: string;
+    type: string;
+    uri: string;
+  };
+  primary_color: string | null;
+  public: boolean;
+  snapshot_id: string;
+  tracks: {
+    href: string;
+    total: number;
+  };
+  type: string;
+  uri: string;
+}
+
+interface SpotifyImage {
+  height: number | null;
+  url: string;
+  width: number | null;
+}
+
+// Add this interface with the other interfaces
+interface SpotifyPlaylistTrack {
+  track: {
+    id: string;
+    name: string;
+    duration_ms: number;
+    explicit: boolean;
+    artists: {
+      name: string;
+    }[];
+    album: {
+      name: string;
+      images: SpotifyImage[];
+    };
+    external_urls: {
+      spotify: string;
+    };
+  };
+  added_at: string;
+}
+
 const TrackCard = ({ track }: { track: spotifyTrack }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const formattedDuration = `${Math.floor(track.duration_ms / 60000)}:${(
@@ -242,6 +310,130 @@ const TrackCard = ({ track }: { track: spotifyTrack }) => {
   );
 };
 
+// Add this component before SpotifyDashboard
+const PlaylistDialog = ({
+  playlist,
+  isOpen,
+  onOpenChange,
+}: {
+  playlist: SpotifyPlaylistItem;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) => {
+  const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTracks = async () => {
+      if (!isOpen) return;
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("spotify_access_token");
+        const response = await fetch(`${playlist.tracks.href}?limit=50`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch tracks");
+
+        const data = await response.json();
+        setTracks(data.items);
+      } catch (error) {
+        console.error("Failed to fetch playlist tracks:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTracks();
+  }, [playlist.tracks.href, isOpen]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader className="bg-zinc-900 pb-4 border-b border-zinc-800 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img
+                src={playlist.images[0]?.url || "/placeholder.png"}
+                alt={playlist.name}
+                className="w-16 h-16 object-cover rounded-md"
+              />
+              <div>
+                <DialogTitle className="text-2xl font-bold">
+                  {playlist.name}
+                </DialogTitle>
+                <p className="text-sm text-zinc-400">
+                  {playlist.tracks.total} tracks
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() =>
+                window.open(playlist.external_urls.spotify, "_blank")
+              }
+              className="bg-green-500 hover:bg-green-600"
+            >
+              Open in Spotify
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto mt-4 spotify-scrollbar">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
+            </div>
+          ) : (
+            <div className="space-y-2 px-6">
+              {tracks.map((item, index) => (
+                <div
+                  key={item.track.id + index}
+                  className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-md group"
+                >
+                  <img
+                    src={item.track.album.images[2]?.url || "/placeholder.png"}
+                    alt={item.track.album.name}
+                    className="w-10 h-10 object-cover rounded"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-white truncate">
+                      {item.track.name}
+                    </p>
+                    <p className="text-sm text-zinc-400 truncate">
+                      {item.track.artists.map((a) => a.name).join(", ")}
+                    </p>
+                  </div>
+                  <div className="text-zinc-500 text-sm">
+                    {Math.floor(item.track.duration_ms / 60000)}:
+                    {((item.track.duration_ms % 60000) / 1000)
+                      .toFixed(0)
+                      .padStart(2, "0")}
+                  </div>
+                  {item.track.external_urls.spotify && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(item.track.external_urls.spotify, "_blank");
+                      }}
+                    >
+                      Play
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const SpotifyDashboard = () => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -251,6 +443,9 @@ const SpotifyDashboard = () => {
     null
   );
   const [currentTrack, setCurrentTrack] = useState<spotifyTrack | null>(null);
+  const [playlists, setPlaylists] = useState<SpotifyPlaylistItem[]>([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [openPlaylistId, setOpenPlaylistId] = useState<string | null>(null);
 
   const refreshSpotifyToken = async () => {
     try {
@@ -283,7 +478,6 @@ const SpotifyDashboard = () => {
       return true;
     } catch (error) {
       console.error("Failed to refresh Spotify token:", error);
-      // Clear all Spotify data on refresh failure
       localStorage.removeItem("spotify_access_token");
       localStorage.removeItem("spotify_refresh_token");
       localStorage.removeItem("spotify_token_expiry");
@@ -305,10 +499,10 @@ const SpotifyDashboard = () => {
         throw new Error("Missing token data");
       }
 
-      const hasExpired = Date.now() > parseInt(expiryTime) - 300000; // 5 minutes buffer
+      const hasExpired = Date.now() > parseInt(expiryTime) - 300000;
 
       if (hasExpired) {
-        console.log("Token expired, attempting refresh..."); // Debug log
+        console.log("Token expired, attempting refresh...");
         const refreshSuccess = await refreshSpotifyToken();
         if (!refreshSuccess) {
           throw new Error("Token refresh failed");
@@ -404,7 +598,7 @@ const SpotifyDashboard = () => {
         }
 
         const data = await response.json();
-        console.log("Raw Spotify data:", data);
+        // console.log("Raw Spotify data:", data);
 
         if (data.item) {
           const trackData: spotifyTrack = {
@@ -416,11 +610,11 @@ const SpotifyDashboard = () => {
             album: data.item.album,
             preview_url: data.item.preview_url,
             popularity: data.item.popularity || 0,
-            progress_ms: data.progress_ms || 0, // Store the progress_ms from the root level
-            is_playing: data.is_playing, // Store the is_playing status
+            progress_ms: data.progress_ms || 0,
+            is_playing: data.is_playing,
           };
 
-          console.log("Processed track data:", trackData);
+          // console.log("Processed track data:", trackData);
           setCurrentTrack(trackData);
         }
       } catch (error) {
@@ -436,7 +630,7 @@ const SpotifyDashboard = () => {
       if (isConnected) {
         fetchCurrentTrack();
       }
-    }, 15 * 1000);
+    }, 10 * 1000);
 
     return () => clearInterval(interval);
   }, [isConnected]);
@@ -504,6 +698,59 @@ const SpotifyDashboard = () => {
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
     }/auth/spotify?token=${token}`;
   };
+
+  useEffect(() => {
+    const user_id = localStorage.getItem("spotify_user_id");
+    if (!user_id) return;
+    try {
+      const fetchUserPlaylists = async () => {
+        const response = await fetch(
+          `https://api.spotify.com/v1/users/${user_id}/playlists`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem(
+                "spotify_access_token"
+              )}`,
+            },
+          }
+        );
+        const data = await response.json();
+      };
+    } catch (error) {
+      console.error("Failed to fetch user data:", error);
+    }
+  });
+
+  useEffect(() => {
+    const fetchPlaylists = async () => {
+      if (!isConnected || !spotifyData?.id) return;
+
+      setPlaylistsLoading(true);
+      try {
+        const token = localStorage.getItem("spotify_access_token");
+        const response = await fetch(
+          `https://api.spotify.com/v1/users/${spotifyData.id}/playlists?limit=50`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) throw new Error("Failed to fetch playlists");
+
+        const data: SpotifyPlaylist = await response.json();
+        setPlaylists(data.items);
+        console.log("Fetched playlists:", data);
+      } catch (error) {
+        console.error("Failed to fetch playlists:", error);
+      } finally {
+        setPlaylistsLoading(false);
+      }
+    };
+
+    fetchPlaylists();
+  }, [isConnected, spotifyData?.id]);
 
   return (
     <>
@@ -579,6 +826,47 @@ const SpotifyDashboard = () => {
                   Currently Playing
                 </h2>
                 <TrackCard track={currentTrack} />
+              </div>
+            )}
+
+            {playlists.length > 0 && (
+              <div className="max-w-[28rem] ml-[5vh]">
+                <h2 className="text-xl font-semibold text-white mb-2">
+                  Your Playlists
+                </h2>
+                <div className="space-y-2">
+                  {playlists.map((playlist) => (
+                    <div key={playlist.id}>
+                      <Card
+                        className="bg-zinc-900/50 hover:bg-zinc-900 transition-colors cursor-pointer"
+                        onClick={() => setOpenPlaylistId(playlist.id)}
+                      >
+                        <CardContent className="flex items-center gap-3 p-3">
+                          <img
+                            src={playlist.images[0]?.url || "/placeholder.png"}
+                            alt={playlist.name}
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                          <div>
+                            <h3 className="font-medium text-white">
+                              {playlist.name}
+                            </h3>
+                            <p className="text-sm text-zinc-400">
+                              {playlist.tracks.total} tracks
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <PlaylistDialog
+                        playlist={playlist}
+                        isOpen={openPlaylistId === playlist.id}
+                        onOpenChange={(open) =>
+                          setOpenPlaylistId(open ? playlist.id : null)
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </>

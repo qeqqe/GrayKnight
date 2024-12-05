@@ -76,3 +76,28 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.spotify-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  background-color: transparent;
+}
+
+.spotify-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  border: 3px solid #181818;
+}
+
+.spotify-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.spotify-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent;
+  border-radius: 6px;
+}
+
+.spotify-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
