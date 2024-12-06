@@ -2,10 +2,20 @@ import { useEffect, useState } from "react";
 import { SpotifyDevice } from "../types";
 import { Laptop, Smartphone, Speaker, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Form, FormControl } from "@/components/ui/form";
 
 export const DevicesSection = () => {
   const [devices, setDevices] = useState<SpotifyDevice[]>([]);
   const [transferring, setTransferring] = useState<string | null>(null);
+  const [volumeAdjusting, setVolumeAdjusting] = useState<string | null>(null);
+  const [volumeInput, setVolumeInput] = useState<string>("");
+  const [openPopover, setOpenPopover] = useState<string | null>(null);
 
   const getDeviceIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -76,6 +86,42 @@ export const DevicesSection = () => {
     }
   };
 
+  const adjustVolume = async (deviceId: string, volume: number) => {
+    try {
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch(
+        `https://api.spotify.com/v1/me/player/volume?volume_percent=${volume}&device_id=${deviceId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to adjust volume");
+      }
+
+      await fetchDevices();
+    } catch (error) {
+      console.error("Failed to adjust volume:", error);
+    }
+  };
+
+  const handleVolumeSubmit = async (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    deviceId: string
+  ) => {
+    if (e.key === "Enter") {
+      const volume = parseInt((e.target as HTMLInputElement).value);
+      if (volume >= 0 && volume <= 100) {
+        await adjustVolume(deviceId, volume);
+        setVolumeAdjusting(null);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchDevices();
     const interval = setInterval(fetchDevices, 30000);
@@ -112,9 +158,66 @@ export const DevicesSection = () => {
                 <p className="text-xs text-zinc-400">
                   {device.type.charAt(0).toUpperCase() + device.type.slice(1)}
                   {device.volume_percent !== null && (
-                    <span className="ml-2">
-                      • Volume: {device.volume_percent}%
-                    </span>
+                    <>
+                      {device.is_active ? (
+                        <Popover
+                          open={openPopover === device.id}
+                          onOpenChange={(open) => {
+                            if (open) {
+                              setVolumeInput(
+                                device.volume_percent?.toString() || ""
+                              );
+                              setOpenPopover(device.id);
+                            } else {
+                              setOpenPopover(null);
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <span className="ml-2 cursor-pointer hover:text-white transition-colors">
+                              • Volume: {device.volume_percent}%
+                            </span>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-40">
+                            <form
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                const volume = parseInt(volumeInput);
+                                if (volume >= 0 && volume <= 100) {
+                                  await adjustVolume(device.id, volume);
+                                  setOpenPopover(null);
+                                }
+                              }}
+                            >
+                              <div className="flex gap-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  placeholder="0-100"
+                                  value={volumeInput}
+                                  onChange={(e) =>
+                                    setVolumeInput(e.target.value)
+                                  }
+                                  className="text-sm"
+                                />
+                                <Button
+                                  type="submit"
+                                  size="sm"
+                                  variant="secondary"
+                                >
+                                  Set
+                                </Button>
+                              </div>
+                            </form>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="ml-2">
+                          • Volume: {device.volume_percent}%
+                        </span>
+                      )}
+                    </>
                   )}
                 </p>
               </div>
