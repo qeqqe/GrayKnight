@@ -233,6 +233,7 @@ import {
   QueueSection,
   TrackCard,
   PlaylistDialog,
+  DevicesSection,
 } from "./_components";
 
 const SpotifyDashboard = () => {
@@ -499,10 +500,18 @@ const SpotifyDashboard = () => {
         ? window.localStorage.getItem("token")
         : null;
 
-    // Add user-read-recently-played to the scope
+    const scopes = [
+      "user-read-currently-playing",
+      "user-read-playback-state",
+      "user-read-recently-played",
+      "user-read-playback-position",
+      "playlist-read-private",
+      "playlist-read-collaborative",
+    ].join(" ");
+
     window.location.href = `${
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    }/auth/spotify?token=${token}&scope=user-read-recently-played`;
+    }/auth/spotify?token=${token}&scope=${encodeURIComponent(scopes)}`;
   };
 
   useEffect(() => {
@@ -546,10 +555,21 @@ const SpotifyDashboard = () => {
         if (!response.ok) throw new Error("Failed to fetch playlists");
 
         const data: SpotifyPlaylist = await response.json();
-        setPlaylists(data.items);
-        console.log("Fetched playlists:", data);
+        // Filter out invalid playlists
+        const validPlaylists = data.items.filter(
+          (playlist) =>
+            playlist &&
+            playlist.id &&
+            playlist.name &&
+            playlist.images &&
+            Array.isArray(playlist.images) &&
+            playlist.tracks
+        );
+        setPlaylists(validPlaylists);
+        console.log("Fetched playlists:", validPlaylists);
       } catch (error) {
         console.error("Failed to fetch playlists:", error);
+        setPlaylists([]);
       } finally {
         setPlaylistsLoading(false);
       }
@@ -768,6 +788,8 @@ const SpotifyDashboard = () => {
                   </div>
                 </div>
               )}
+
+              <DevicesSection />
             </div>
 
             <div className="space-y-6">
