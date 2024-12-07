@@ -1,4 +1,6 @@
-# Last.fm Music Tracker Application (Still in very early development stages ⚠️)
+# GrayKnight Music Analytics
+
+A data visualization application that analyzes your Spotify and Last.fm listening history to reveal music preferences, genre trends, and listening patterns through interactive charts and insights.
 
 ## Project Overview
 
@@ -104,12 +106,30 @@ LICENSE.md
 
 ### Next Steps
 
-1. Enhance error handling for playback failures
-2. Add music recommendation system
-3. Implement collaborative playlist features
-4. Add audio visualizations
-5. Integrate with more music services
-6. Improve mobile responsiveness
-7. Add offline capabilities
+1. Enhance data analytics visualization
+   - Genre distribution charts
+   - Listening patterns by time/day
+   - Artist diversity metrics
+   - Mood analysis graphs
+2. Implement music taste analysis
+   - Genre preference tracking
+   - Listening habit insights
+   - Discovery rate metrics
+3. Add comparative analytics
+   - Compare different time periods
+   - Cross-platform listening patterns
+   - Genre evolution over time
+4. Create personalized insights
+   - Custom listening reports
+   - Music taste evolution
+   - Activity-based recommendations
+5. Develop social features
+   - Share listening insights
+   - Compare with friends
+   - Collaborative playlists
+6. Improve data export options
+   - PDF reports
+   - Data visualization exports
+   - Raw data access
 
 Note: Development is now primarily focused on Spotify integration due to its more comprehensive API capabilities.
