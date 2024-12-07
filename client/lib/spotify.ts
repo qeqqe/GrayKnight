@@ -4,6 +4,10 @@ export async function playSpotifyTrack(options: {
   uris?: string[];
   position_ms?: number;
   deviceId?: string;
+  offset?: {
+    uri?: string;
+    position?: number;
+  };
 }) {
   const token = localStorage.getItem("spotify_access_token");
   if (!token) throw new Error("No Spotify access token found");
@@ -16,6 +20,7 @@ export async function playSpotifyTrack(options: {
   if (options.context_uri) body.context_uri = options.context_uri;
   if (options.uris) body.uris = options.uris;
   if (options.position_ms) body.position_ms = options.position_ms;
+  if (options.offset) body.offset = options.offset;
 
   try {
     const response = await fetch(endpoint, {

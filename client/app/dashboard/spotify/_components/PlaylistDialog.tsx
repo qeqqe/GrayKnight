@@ -86,7 +86,9 @@ export const PlaylistDialog = ({
     try {
       await playSpotifyTrack({
         context_uri: `spotify:playlist:${playlist.id}`,
-        uri: `spotify:track:${trackId}`,
+        offset: {
+          uri: `spotify:track:${trackId}`,
+        },
         position_ms: 0,
       });
     } catch (error) {
