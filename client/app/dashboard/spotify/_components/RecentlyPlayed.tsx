@@ -2,7 +2,20 @@ import { Button } from "@/components/ui/button";
 import { formatDistance } from "date-fns";
 import { RecentlyPlayedItem } from "../types";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { playSpotifyTrack } from "@/lib/spotify";
+
 export const RecentlyPlayed = ({ items }: { items: RecentlyPlayedItem[] }) => {
+  const handlePlay = async (trackId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await playSpotifyTrack({
+        uris: [`spotify:track:${trackId}`],
+      });
+    } catch (error) {
+      console.error("Failed to play track:", error);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-white">Recently Played</h2>
@@ -35,9 +48,7 @@ export const RecentlyPlayed = ({ items }: { items: RecentlyPlayedItem[] }) => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() =>
-                    window.open(item.track.external_urls.spotify, "_blank")
-                  }
+                  onClick={(e) => handlePlay(item.track.id, e)}
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   Play

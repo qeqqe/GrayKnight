@@ -256,21 +256,32 @@ const SpotifyDashboard = () => {
 
   const refreshSpotifyToken = async () => {
     try {
+      console.log("Starting token refresh process...");
       const refreshToken = localStorage.getItem("spotify_refresh_token");
+
       if (!refreshToken) {
         throw new Error("No refresh token available");
       }
 
+      console.log("Making refresh token request...");
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/refresh_token?refresh_token=${refreshToken}`
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to refresh token: ${response.status}`);
-      }
-
+      console.log("Refresh token response status:", response.status);
       const data = await response.json();
-      console.log("Token refresh response:", data);
+      console.log("Refresh token response:", {
+        hasAccessToken: !!data.access_token,
+        hasRefreshToken: !!data.refresh_token,
+        expiresIn: data.expires_in,
+        error: data.error,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to refresh token: ${data.error || response.status}`
+        );
+      }
 
       if (!data.access_token) {
         throw new Error("No access token in response");
@@ -282,17 +293,34 @@ const SpotifyDashboard = () => {
         (Date.now() + data.expires_in * 1000).toString()
       );
 
+      if (data.refresh_token) {
+        console.log("Updating refresh token...");
+        localStorage.setItem("spotify_refresh_token", data.refresh_token);
+      }
+
       return true;
     } catch (error) {
-      console.error("Failed to refresh Spotify token:", error);
-      localStorage.removeItem("spotify_access_token");
-      localStorage.removeItem("spotify_refresh_token");
-      localStorage.removeItem("spotify_token_expiry");
-      localStorage.removeItem("spotify_connected");
-      setIsConnected(false);
-      setSpotifyData(null);
-      setOtherUserData(null);
-      setCurrentTrack(null);
+      console.error("Failed to refresh Spotify token:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      if (
+        error instanceof Error &&
+        (error.message.includes("invalid_grant") ||
+          error.message.includes("Invalid refresh token"))
+      ) {
+        console.log("Clearing Spotify credentials due to authentication error");
+        localStorage.removeItem("spotify_access_token");
+        localStorage.removeItem("spotify_refresh_token");
+        localStorage.removeItem("spotify_token_expiry");
+        localStorage.removeItem("spotify_connected");
+        setIsConnected(false);
+        setSpotifyData(null);
+        setOtherUserData(null);
+        setCurrentTrack(null);
+      }
+
       return false;
     }
   };
@@ -306,14 +334,16 @@ const SpotifyDashboard = () => {
         throw new Error("Missing token data");
       }
 
+      // eefresh token 5m before exp
       const hasExpired = Date.now() > parseInt(expiryTime) - 300000;
 
       if (hasExpired) {
-        console.log("Token expired, attempting refresh...");
+        console.log("Token expired or expiring soon, attempting refresh...");
         const refreshSuccess = await refreshSpotifyToken();
         if (!refreshSuccess) {
           throw new Error("Token refresh failed");
         }
+        console.log("Token refresh successful");
       }
       return true;
     } catch (error) {
@@ -507,7 +537,19 @@ const SpotifyDashboard = () => {
       "user-read-recently-played",
       "user-read-playback-position",
       "playlist-read-private",
+      "user-modify-playback-state",
       "playlist-read-collaborative",
+      "playlist-modify-public",
+      "playlist-modify-private",
+      "user-library-read",
+      "user-library-modify",
+      "user-top-read",
+      "user-read-private",
+      "user-read-email",
+      "user-follow-read",
+      "user-follow-modify",
+      "streaming",
+      "app-remote-control",
     ].join(" ");
 
     window.location.href = `${

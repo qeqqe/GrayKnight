@@ -11,6 +11,7 @@ import {
   PlaylistResponse,
   SpotifyPlaylistTrack,
 } from "../types";
+import { playSpotifyTrack } from "@/lib/spotify";
 
 export const PlaylistDialog = ({
   playlist,
@@ -79,6 +80,20 @@ export const PlaylistDialog = ({
     fetchTracks(`${playlist.tracks.href}?limit=50`);
   }, [playlist.tracks.href, isOpen]);
 
+  const handlePlay = async (trackId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await playSpotifyTrack({
+        context_uri: `spotify:playlist:${playlist.id}`,
+        uri: `spotify:track:${trackId}`,
+        position_ms: 0,
+      });
+    } catch (error) {
+      console.error("Failed to play track:", error);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -141,10 +156,7 @@ export const PlaylistDialog = ({
                     size="sm"
                     variant="ghost"
                     className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(item.track.external_urls.spotify, "_blank");
-                    }}
+                    onClick={(e) => handlePlay(item.track.id, e)}
                   >
                     Play
                   </Button>

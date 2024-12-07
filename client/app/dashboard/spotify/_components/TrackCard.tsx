@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { spotifyTrack } from "../types";
+import { playSpotifyTrack } from "@/lib/spotify";
 
 export const TrackCard = ({ track }: { track: spotifyTrack }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,6 +40,17 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
     : "Release date unavailable";
 
   console.log("Track in card:", track);
+
+  const handlePlay = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await playSpotifyTrack({
+        uris: [`spotify:track:${track.id}`],
+      });
+    } catch (error) {
+      console.error("Failed to play track:", error);
+    }
+  };
 
   return (
     <>
@@ -82,6 +94,14 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={handlePlay}
+          >
+            Play
+          </Button>
         </CardContent>
       </Card>
 

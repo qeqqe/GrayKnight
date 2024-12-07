@@ -765,15 +765,26 @@ app.get("/auth/spotify", (req, res, next) => {
 
   passport.authenticate("spotify", {
     scope: [
-      "user-read-email",
-      "user-read-private",
-      "user-read-playback-state",
       "user-read-currently-playing",
+      "user-read-playback-state",
       "user-read-recently-played",
       "user-read-playback-position",
-      "user-modify-playback-state",
       "playlist-read-private",
+      "user-modify-playback-state",
       "playlist-read-collaborative",
+      "user-modify-playback-state",
+      "user-read-playback-state",
+      "playlist-modify-public",
+      "playlist-modify-private",
+      "user-library-read",
+      "user-library-modify",
+      "user-top-read",
+      "user-read-private",
+      "user-read-email",
+      "user-follow-read",
+      "user-follow-modify",
+      "streaming",
+      "app-remote-control",
     ],
     showDialog: true,
     state: req.session.userId,
@@ -826,6 +837,10 @@ app.get(
 app.get("/refresh_token", async (req, res) => {
   try {
     const refreshToken = req.query.refresh_token;
+    console.log("Refresh token request received:", {
+      hasToken: !!refreshToken,
+      tokenLength: refreshToken?.length,
+    });
 
     if (!refreshToken) {
       return res.status(400).json({ error: "Refresh token is required" });
@@ -836,41 +851,74 @@ app.get("/refresh_token", async (req, res) => {
       refresh_token: refreshToken,
     });
 
-    const response = await fetch("https://accounts.spotify.com/api/token", {
+    const spotifyTokenUrl = "https://accounts.spotify.com/api/token";
+    console.log("Making request to Spotify:", spotifyTokenUrl);
+
+    const authString = Buffer.from(
+      process.env.SPOTIFY_CLIENT_ID + ":" + process.env.SPOTIFY_CLIENT_SECRET
+    ).toString("base64");
+
+    const response = await fetch(spotifyTokenUrl, {
       method: "POST",
       headers: {
-        Authorization:
-          "Basic " +
-          Buffer.from(
-            process.env.SPOTIFY_CLIENT_ID +
-              ":" +
-              process.env.SPOTIFY_CLIENT_SECRET
-          ).toString("base64"),
+        Authorization: "Basic " + authString,
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: params,
     });
 
+    console.log("Spotify response status:", response.status);
+    const data = await response.json();
+    console.log("Spotify response data:", {
+      hasAccessToken: !!data.access_token,
+      hasRefreshToken: !!data.refresh_token,
+      expiresIn: data.expires_in,
+      error: data.error,
+      errorDescription: data.error_description,
+    });
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error_description || "Failed to refresh token");
+      throw new Error(data.error_description || "Failed to refresh token");
     }
 
-    const data = await response.json();
+    if (!data.access_token) {
+      throw new Error("No access token received from Spotify");
+    }
 
+    // Update user if authenticated
     if (req.user?.userId) {
-      await User.findByIdAndUpdate(req.user.userId, {
-        spotifyAccessToken: data.access_token,
-        spotifyTokenExpiry: new Date(Date.now() + data.expires_in * 1000),
-      });
+      try {
+        const updatedUser = await User.findByIdAndUpdate(
+          req.user.userId,
+          {
+            spotifyAccessToken: data.access_token,
+            spotifyTokenExpiry: new Date(Date.now() + data.expires_in * 1000),
+            // Update refresh token if Spotify provided a new one
+            ...(data.refresh_token && {
+              spotifyRefreshToken: data.refresh_token,
+            }),
+          },
+          { new: true }
+        );
+        console.log("User token updated:", {
+          userId: req.user.userId,
+          success: !!updatedUser,
+        });
+      } catch (dbError) {
+        console.error("Failed to update user tokens:", dbError);
+      }
     }
 
     res.json({
       access_token: data.access_token,
       expires_in: data.expires_in,
+      refresh_token: data.refresh_token, // Include new refresh token if provided
     });
   } catch (error) {
-    console.error("Token refresh error:", error);
+    console.error("Token refresh error:", {
+      message: error.message,
+      stack: error.stack,
+    });
     res.status(500).json({
       error: "Failed to refresh token",
       message:

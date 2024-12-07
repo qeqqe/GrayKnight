@@ -1,7 +1,20 @@
+import { Button } from "@/components/ui/button";
 import { spotifyTrack } from "../types";
+import { playSpotifyTrack } from "@/lib/spotify";
 
 export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
   if (!queue.length) return null;
+
+  const handlePlay = async (trackId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await playSpotifyTrack({
+        uris: [`spotify:track:${trackId}`],
+      });
+    } catch (error) {
+      console.error("Failed to play track:", error);
+    }
+  };
 
   return (
     <div>
@@ -27,6 +40,14 @@ export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
               {Math.floor(track.duration_ms / 60000)}:
               {((track.duration_ms % 60000) / 1000).toFixed(0).padStart(2, "0")}
             </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => handlePlay(track.id, e)}
+            >
+              Play
+            </Button>
           </div>
         ))}
       </div>
