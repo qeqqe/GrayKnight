@@ -56,7 +56,7 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
     <>
       <Card
         onClick={() => setIsModalOpen(true)}
-        className="mt-6 cursor-pointer group hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-zinc-900/50 to-zinc-800/50 border-zinc-700/50"
+        className="mt-6 cursor-pointer group hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-zinc-50/50 to-zinc-100/50 dark:from-zinc-900/50 dark:to-zinc-800/50 border-zinc-200 dark:border-zinc-700/50"
       >
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-4">
@@ -69,10 +69,10 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
               <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-all duration-300 rounded-md" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg text-white group-hover:text-green-400 transition-colors">
+              <h3 className="font-semibold text-lg text-zinc-900 dark:text-white group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
                 {track.name}
               </h3>
-              <p className="text-zinc-400 text-sm">
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm">
                 {track.artists.map((artist) => artist.name).join(", ")}
               </p>
               <div className="flex items-center gap-2 mt-1">
@@ -88,9 +88,9 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
             </div>
           </div>
 
-          <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-green-500 transition-all duration-500 ease-linear"
+              className="h-full bg-green-500/80 dark:bg-green-500 transition-all duration-500 ease-linear"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>

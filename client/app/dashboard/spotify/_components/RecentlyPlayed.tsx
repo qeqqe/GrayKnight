@@ -21,11 +21,11 @@ export const RecentlyPlayed = ({ items }: { items: RecentlyPlayedItem[] }) => {
       <h2 className="text-xl font-semibold text-white">Recently Played</h2>
       {items.length > 0 ? (
         <ScrollArea className="h-[22rem] rounded-md">
-          <div className="space-y-2 bg-zinc-900/50 rounded-lg p-4">
+          <div className="space-y-2 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-lg p-4">
             {items.map((item) => (
               <div
                 key={`${item.track.id}-${item.played_at}`}
-                className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-md group"
+                className="flex items-center gap-3 p-2 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50 rounded-md group"
               >
                 <img
                   src={item.track.album.images[2]?.url || "/placeholder.png"}
@@ -33,10 +33,10 @@ export const RecentlyPlayed = ({ items }: { items: RecentlyPlayedItem[] }) => {
                   className="w-10 h-10 object-cover rounded"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white truncate">
+                  <p className="font-medium text-zinc-900 dark:text-white truncate">
                     {item.track.name}
                   </p>
-                  <p className="text-sm text-zinc-400 truncate">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
                     {item.track.artists.map((artist) => artist.name).join(", ")}
                   </p>
                   <p className="text-xs text-zinc-500">
@@ -58,7 +58,7 @@ export const RecentlyPlayed = ({ items }: { items: RecentlyPlayedItem[] }) => {
           </div>
         </ScrollArea>
       ) : (
-        <p className="text-zinc-500 text-center py-4">
+        <p className="text-zinc-600 dark:text-zinc-500 text-center py-4">
           No recently played tracks
         </p>
       )}

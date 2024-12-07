@@ -98,8 +98,8 @@ export const PlaylistDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader className="bg-zinc-900 pb-4 border-b border-zinc-800 flex-shrink-0">
+      <DialogContent className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader className="bg-zinc-50 dark:bg-zinc-900 pb-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
@@ -108,10 +108,10 @@ export const PlaylistDialog = ({
                 className="w-16 h-16 object-cover rounded-md"
               />
               <div>
-                <DialogTitle className="text-2xl font-bold">
+                <DialogTitle className="text-2xl font-bold text-zinc-900 dark:text-white">
                   {playlist.name}
                 </DialogTitle>
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   {playlist.tracks.total} tracks
                 </p>
               </div>
@@ -120,7 +120,7 @@ export const PlaylistDialog = ({
               onClick={() =>
                 window.open(playlist.external_urls.spotify, "_blank")
               }
-              className="bg-green-500 hover:bg-green-600"
+              className="bg-green-500 hover:bg-green-600 text-white"
             >
               Open in Spotify
             </Button>
@@ -132,7 +132,7 @@ export const PlaylistDialog = ({
             {tracks.map((item, index) => (
               <div
                 key={item.track.id + index}
-                className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-md group"
+                className="flex items-center gap-3 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-md group"
               >
                 <img
                   src={item.track.album.images[2]?.url || "/placeholder.png"}
@@ -140,14 +140,14 @@ export const PlaylistDialog = ({
                   className="w-10 h-10 object-cover rounded"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white truncate">
+                  <p className="font-medium text-zinc-900 dark:text-white truncate">
                     {item.track.name}
                   </p>
-                  <p className="text-sm text-zinc-400 truncate">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 truncate">
                     {item.track.artists.map((a) => a.name).join(", ")}
                   </p>
                 </div>
-                <div className="text-zinc-500 text-sm">
+                <div className="text-zinc-600 dark:text-zinc-500 text-sm">
                   {Math.floor(item.track.duration_ms / 60000)}:
                   {((item.track.duration_ms % 60000) / 1000)
                     .toFixed(0)

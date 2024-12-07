@@ -132,30 +132,34 @@ export const DevicesSection = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-white">Available Devices</h2>
-      <div className="space-y-2 bg-zinc-900/50 rounded-lg p-4">
+      <h2 className="text-xl font-semibold text-zinc-900 dark:text-white">
+        Available Devices
+      </h2>
+      <div className="space-y-2 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-lg p-4">
         {devices.map((device) => (
           <div
             key={device.id}
-            className="flex items-center gap-3 p-2 rounded-md"
+            className="flex items-center gap-3 p-2 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50 rounded-md"
           >
             <div className="flex-1 flex items-center gap-3">
-              <div className="text-green-400">{getDeviceIcon(device.type)}</div>
+              <div className="text-green-600 dark:text-green-400">
+                {getDeviceIcon(device.type)}
+              </div>
               <div className="flex-1">
-                <p className="font-medium text-white">
+                <p className="font-medium text-zinc-900 dark:text-white">
                   {device.name}
                   {device.is_active && (
-                    <span className="ml-2 text-xs text-green-400">
+                    <span className="ml-2 text-xs text-green-600 dark:text-green-400">
                       • Active
                     </span>
                   )}
                   {transferring === device.id && (
-                    <span className="ml-2 text-xs text-yellow-400">
+                    <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">
                       • Transferring...
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-zinc-600 dark:text-zinc-400">
                   {device.type.charAt(0).toUpperCase() + device.type.slice(1)}
                   {device.volume_percent !== null && (
                     <>
@@ -174,11 +178,11 @@ export const DevicesSection = () => {
                           }}
                         >
                           <PopoverTrigger asChild>
-                            <span className="ml-2 cursor-pointer hover:text-white transition-colors">
+                            <span className="ml-2 cursor-pointer text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
                               • Volume: {device.volume_percent}%
                             </span>
                           </PopoverTrigger>
-                          <PopoverContent className="w-40">
+                          <PopoverContent className="w-40 bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700">
                             <form
                               onSubmit={async (e) => {
                                 e.preventDefault();
@@ -199,12 +203,13 @@ export const DevicesSection = () => {
                                   onChange={(e) =>
                                     setVolumeInput(e.target.value)
                                   }
-                                  className="text-sm"
+                                  className="text-sm bg-transparent"
                                 />
                                 <Button
                                   type="submit"
                                   size="sm"
                                   variant="secondary"
+                                  className="bg-zinc-100 dark:bg-zinc-700"
                                 >
                                   Set
                                 </Button>
@@ -213,7 +218,7 @@ export const DevicesSection = () => {
                           </PopoverContent>
                         </Popover>
                       ) : (
-                        <span className="ml-2">
+                        <span className="ml-2 text-zinc-500 dark:text-zinc-500">
                           • Volume: {device.volume_percent}%
                         </span>
                       )}
@@ -226,7 +231,7 @@ export const DevicesSection = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-yellow-500 hover:text-yellow-400"
+                className="text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400"
                 onClick={() => transferPlayback(device.id)}
                 disabled={transferring !== null}
               >

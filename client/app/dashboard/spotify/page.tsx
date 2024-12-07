@@ -260,26 +260,47 @@ const SpotifyDashboard = () => {
       const refreshToken = localStorage.getItem("spotify_refresh_token");
 
       if (!refreshToken) {
+        console.error("No refresh token found in localStorage");
         throw new Error("No refresh token available");
       }
 
-      console.log("Making refresh token request...");
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      console.log("Using API URL:", apiUrl);
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/refresh_token?refresh_token=${refreshToken}`
+        `${apiUrl}/refresh_token?refresh_token=${encodeURIComponent(
+          refreshToken
+        )}`,
+        {
+          method: "POST", // Changed to POST for better security
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
 
       console.log("Refresh token response status:", response.status);
-      const data = await response.json();
+
+      // Try to parse response even if it's an error
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error("Failed to parse response:", e);
+        throw new Error("Invalid response format");
+      }
+
       console.log("Refresh token response:", {
         hasAccessToken: !!data.access_token,
         hasRefreshToken: !!data.refresh_token,
         expiresIn: data.expires_in,
         error: data.error,
+        statusCode: response.status,
       });
 
       if (!response.ok) {
         throw new Error(
-          `Failed to refresh token: ${data.error || response.status}`
+          `Failed to refresh token: ${data.error || response.statusText}`
         );
       }
 
@@ -287,6 +308,7 @@ const SpotifyDashboard = () => {
         throw new Error("No access token in response");
       }
 
+      // Store new tokens
       localStorage.setItem("spotify_access_token", data.access_token);
       localStorage.setItem(
         "spotify_token_expiry",
@@ -305,10 +327,12 @@ const SpotifyDashboard = () => {
         stack: error instanceof Error ? error.stack : undefined,
       });
 
+      // If the refresh token is invalid or expired, clear all tokens
       if (
         error instanceof Error &&
         (error.message.includes("invalid_grant") ||
-          error.message.includes("Invalid refresh token"))
+          error.message.includes("Invalid refresh token") ||
+          error.message.includes("500"))
       ) {
         console.log("Clearing Spotify credentials due to authentication error");
         localStorage.removeItem("spotify_access_token");
@@ -748,8 +772,8 @@ const SpotifyDashboard = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-6">
-              <Card className="border bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 sm:p-6 md:p-8 hover:shadow-xl transition-all duration-300 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 pointer-events-none" />
+              <Card className="relative overflow-hidden border bg-gradient-to-br from-white to-zinc-100/50 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-6 md:p-8 hover:shadow-xl transition-all duration-300">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 dark:from-green-500/10 dark:to-emerald-500/10 pointer-events-none" />
                 <div className="flex flex-row items-center gap-6 md:gap-8 relative z-10">
                   <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-green-500/20 hover:ring-green-500/40 transition-all duration-300 shadow-xl flex-shrink-0">
                     <AvatarImage
@@ -767,19 +791,19 @@ const SpotifyDashboard = () => {
                   </Avatar>
                   {spotifyData && (
                     <CardContent className="p-0 space-y-3 md:space-y-4">
-                      <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                      <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-600 to-emerald-700 dark:from-green-400 dark:to-emerald-500 bg-clip-text text-transparent">
                         {spotifyData.display_name}
                       </h3>
                       <div className="space-y-2">
-                        <p className="text-zinc-400 flex items-center gap-2">
-                          <span className="font-semibold text-lg md:text-xl text-white">
+                        <p className="text-zinc-600 dark:text-zinc-400 flex items-center gap-2">
+                          <span className="font-semibold text-lg md:text-xl text-zinc-900 dark:text-white">
                             {otherUserData?.followers?.total.toLocaleString()}
                           </span>
                           Followers
                         </p>
-                        <p className="text-zinc-400">
+                        <p className="text-zinc-600 dark:text-zinc-400">
                           Location:{" "}
-                          <span className="text-white">
+                          <span className="text-zinc-900 dark:text-white">
                             {spotifyData.country}
                           </span>
                         </p>
@@ -791,7 +815,7 @@ const SpotifyDashboard = () => {
 
               {playlists.length > 0 && (
                 <div>
-                  <h2 className="text-xl font-semibold text-white mb-2">
+                  <h2 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">
                     Your Playlists
                   </h2>
                   <ScrollArea className="h-[20rem] rounded-md">
@@ -799,7 +823,7 @@ const SpotifyDashboard = () => {
                       {playlists.map((playlist) => (
                         <div key={playlist.id}>
                           <Card
-                            className="bg-zinc-900/50 hover:bg-zinc-900 transition-colors cursor-pointer"
+                            className="bg-zinc-50/50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
                             onClick={() => setOpenPlaylistId(playlist.id)}
                           >
                             <CardContent className="flex items-center gap-3 p-3">

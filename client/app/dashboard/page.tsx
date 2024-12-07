@@ -41,18 +41,7 @@ const DashboardPage = () => {
         <header className="container flex h-16 items-center px-4">
           <div className="flex items-center gap-6">
             <h1 className="text-xl font-semibold">GrayKnight</h1>
-            <nav className="hidden md:flex items-center gap-6">
-              <Button
-                variant={activeTab === "lastfm" ? "default" : "ghost"}
-                className={`text-red-600 ${
-                  activeTab === "lastfm"
-                    ? "shadow-[0_0_10px_rgba(255,0,0,0.5)]"
-                    : ""
-                }`}
-                onClick={() => handleTabChange("lastfm")}
-              >
-                Last.fm
-              </Button>
+            <nav className="flex items-center gap-6">
               <Button
                 variant={activeTab === "spotify" ? "default" : "ghost"}
                 className={`text-green-600 ${
@@ -63,6 +52,17 @@ const DashboardPage = () => {
                 onClick={() => handleTabChange("spotify")}
               >
                 Spotify
+              </Button>
+              <Button
+                variant={activeTab === "lastfm" ? "default" : "ghost"}
+                className={`text-red-600 ${
+                  activeTab === "lastfm"
+                    ? "shadow-[0_0_10px_rgba(255,0,0,0.5)]"
+                    : ""
+                }`}
+                onClick={() => handleTabChange("lastfm")}
+              >
+                Last.fm
               </Button>
             </nav>
           </div>
