@@ -41,3 +41,57 @@ export async function playSpotifyTrack(options: {
     throw error;
   }
 }
+
+export const pauseSpotifyTrack = async (deviceId?: string) => {
+  const token = localStorage.getItem("spotify_access_token");
+  const endpoint = deviceId
+    ? `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`
+    : "https://api.spotify.com/v1/me/player/pause";
+
+  const response = await fetch(endpoint, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to pause track");
+  }
+};
+
+export const nextSpotifyTrack = async (deviceId?: string) => {
+  const token = localStorage.getItem("spotify_access_token");
+  const endpoint = deviceId
+    ? `https://api.spotify.com/v1/me/player/next?device_id=${deviceId}`
+    : "https://api.spotify.com/v1/me/player/next";
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to skip to next track");
+  }
+};
+
+export const previousSpotifyTrack = async (deviceId?: string) => {
+  const token = localStorage.getItem("spotify_access_token");
+  const endpoint = deviceId
+    ? `https://api.spotify.com/v1/me/player/previous?device_id=${deviceId}`
+    : "https://api.spotify.com/v1/me/player/previous";
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to go to previous track");
+  }
+};

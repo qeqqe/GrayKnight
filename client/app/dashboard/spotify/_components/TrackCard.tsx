@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,10 +15,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { spotifyTrack } from "../types";
-import { playSpotifyTrack } from "@/lib/spotify";
+import {
+  playSpotifyTrack,
+  pauseSpotifyTrack,
+  nextSpotifyTrack,
+  previousSpotifyTrack,
+} from "@/lib/spotify";
+import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 
 export const TrackCard = ({ track }: { track: spotifyTrack }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [localPlayingState, setLocalPlayingState] = useState(track.is_playing);
   const formattedDuration = `${Math.floor(track.duration_ms / 60000)}:${(
     (track.duration_ms % 60000) /
     1000
@@ -41,16 +48,53 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
 
   console.log("Track in card:", track);
 
-  const handlePlay = async (e: React.MouseEvent) => {
+  const handlePlayPause = async (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Stop event from bubbling up to card
+
+    // Update local state immediately
+    setLocalPlayingState(!localPlayingState);
+
     try {
-      await playSpotifyTrack({
-        uris: [`spotify:track:${track.id}`],
-      });
+      if (localPlayingState) {
+        await pauseSpotifyTrack();
+      } else {
+        await playSpotifyTrack({
+          uris: [`spotify:track:${track.id}`],
+          position_ms: track.progress_ms, // Resume from current position
+        });
+      }
     } catch (error) {
-      console.error("Failed to play track:", error);
+      // Revert local state if there's an error
+      setLocalPlayingState(localPlayingState);
+      console.error("Failed to control playback:", error);
     }
   };
+
+  const handleNext = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await nextSpotifyTrack();
+    } catch (error) {
+      console.error("Failed to skip track:", error);
+    }
+  };
+
+  const handlePrevious = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await previousSpotifyTrack();
+    } catch (error) {
+      console.error("Failed to go to previous track:", error);
+    }
+  };
+
+  // Update localPlayingState when track.is_playing changes from API
+  useEffect(() => {
+    setLocalPlayingState(track.is_playing);
+  }, [track.is_playing]);
 
   return (
     <>
@@ -94,14 +138,37 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={handlePlay}
-          >
-            Play
-          </Button>
+
+          <div className="flex justify-center items-center gap-4">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={handlePrevious}
+            >
+              <SkipBack className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={handlePlayPause}
+            >
+              {localPlayingState ? (
+                <Pause className="w-4 h-4" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={handleNext}
+            >
+              <SkipForward className="w-4 h-4" />
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
