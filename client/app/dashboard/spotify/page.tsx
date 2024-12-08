@@ -24,6 +24,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Music2, Clock, PlayCircle, ListMusic, Radio } from "lucide-react";
 
 interface spotifyTrack {
   id: string;
@@ -267,41 +269,25 @@ const SpotifyDashboard = () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       console.log("Using API URL:", apiUrl);
 
-      const response = await fetch(
-        `${apiUrl}/refresh_token?refresh_token=${encodeURIComponent(
-          refreshToken
-        )}`,
-        {
-          method: "POST", // Changed to POST for better security
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${apiUrl}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
 
-      console.log("Refresh token response status:", response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, ${errorText}`);
+      }
 
-      // Try to parse response even if it's an error
       let data;
       try {
         data = await response.json();
       } catch (e) {
-        console.error("Failed to parse response:", e);
-        throw new Error("Invalid response format");
-      }
-
-      console.log("Refresh token response:", {
-        hasAccessToken: !!data.access_token,
-        hasRefreshToken: !!data.refresh_token,
-        expiresIn: data.expires_in,
-        error: data.error,
-        statusCode: response.status,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to refresh token: ${data.error || response.statusText}`
-        );
+        console.error("Response:", await response.text());
+        throw new Error("Invalid response format from server");
       }
 
       if (!data.access_token) {
@@ -312,11 +298,10 @@ const SpotifyDashboard = () => {
       localStorage.setItem("spotify_access_token", data.access_token);
       localStorage.setItem(
         "spotify_token_expiry",
-        (Date.now() + data.expires_in * 1000).toString()
+        (Date.now() + (data.expires_in || 3600) * 1000).toString()
       );
 
       if (data.refresh_token) {
-        console.log("Updating refresh token...");
         localStorage.setItem("spotify_refresh_token", data.refresh_token);
       }
 
@@ -327,14 +312,13 @@ const SpotifyDashboard = () => {
         stack: error instanceof Error ? error.stack : undefined,
       });
 
-      // If the refresh token is invalid or expired, clear all tokens
       if (
         error instanceof Error &&
         (error.message.includes("invalid_grant") ||
           error.message.includes("Invalid refresh token") ||
-          error.message.includes("500"))
+          error.message.includes("401") ||
+          error.message.includes("400"))
       ) {
-        console.log("Clearing Spotify credentials due to authentication error");
         localStorage.removeItem("spotify_access_token");
         localStorage.removeItem("spotify_refresh_token");
         localStorage.removeItem("spotify_token_expiry");
@@ -744,132 +728,149 @@ const SpotifyDashboard = () => {
     }
   }, [isConnected]);
 
-  return (
-    <>
-      <main className="space-y-6 p-4">
-        {!isConnected ? (
-          <Card className="border-dashed">
-            <CardHeader className="text-center">
-              <CardTitle>Connect Your Spotify Account</CardTitle>
-              <CardDescription>
-                {error ? (
-                  <span className="text-red-400">{error}</span>
-                ) : (
-                  "Connect your Spotify account to access your playlists and more"
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center pb-6">
-              <Button
-                size="lg"
-                className="gap-2"
-                onClick={handleSpotifyConnect}
-              >
-                {error ? "Reconnect Spotify" : "Connect with Spotify"}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-6">
-              <Card className="relative overflow-hidden border bg-gradient-to-br from-white to-zinc-100/50 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-6 md:p-8 hover:shadow-xl transition-all duration-300">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 dark:from-green-500/10 dark:to-emerald-500/10 pointer-events-none" />
-                <div className="flex flex-row items-center gap-6 md:gap-8 relative z-10">
-                  <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-green-500/20 hover:ring-green-500/40 transition-all duration-300 shadow-xl flex-shrink-0">
-                    <AvatarImage
-                      src={
-                        otherUserData?.images?.[0]?.url || "/default-avatar.png"
-                      }
-                      alt="Spotify Avatar"
-                      className="object-cover"
-                    />
-                    <AvatarFallback className="text-2xl md:text-4xl font-bold bg-gradient-to-br from-green-400 to-emerald-600">
-                      {spotifyData?.display_name
-                        ? spotifyData.display_name[0]
-                        : "S"}
-                    </AvatarFallback>
-                  </Avatar>
-                  {spotifyData && (
-                    <CardContent className="p-0 space-y-3 md:space-y-4">
-                      <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-600 to-emerald-700 dark:from-green-400 dark:to-emerald-500 bg-clip-text text-transparent">
-                        {spotifyData.display_name}
-                      </h3>
-                      <div className="space-y-2">
-                        <p className="text-zinc-600 dark:text-zinc-400 flex items-center gap-2">
-                          <span className="font-semibold text-lg md:text-xl text-zinc-900 dark:text-white">
-                            {otherUserData?.followers?.total.toLocaleString()}
-                          </span>
-                          Followers
-                        </p>
-                        <p className="text-zinc-600 dark:text-zinc-400">
-                          Location:{" "}
-                          <span className="text-zinc-900 dark:text-white">
-                            {spotifyData.country}
-                          </span>
-                        </p>
-                      </div>
-                    </CardContent>
-                  )}
-                </div>
-              </Card>
+  const renderConnectCard = () => (
+    <Card className="border-dashed">
+      <CardHeader className="text-center">
+        <CardTitle>Connect Your Spotify Account</CardTitle>
+        <CardDescription>
+          {error ? (
+            <span className="text-red-400">{error}</span>
+          ) : (
+            "Connect your Spotify account to access your playlists and more"
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex justify-center pb-6">
+        <Button size="lg" className="gap-2" onClick={handleSpotifyConnect}>
+          {error ? "Reconnect Spotify" : "Connect with Spotify"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
 
-              {playlists.length > 0 && (
-                <div>
-                  <h2 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">
-                    Your Playlists
-                  </h2>
-                  <ScrollArea className="h-[20rem] rounded-md">
-                    <div className="space-y-2 pr-4">
-                      {playlists.map((playlist) => (
-                        <div key={playlist.id}>
-                          <Card
-                            className="bg-zinc-50/50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
-                            onClick={() => setOpenPlaylistId(playlist.id)}
-                          >
-                            <CardContent className="flex items-center gap-3 p-3">
-                              <img
-                                src={
-                                  playlist.images[0]?.url || "/placeholder.png"
-                                }
-                                alt={playlist.name}
-                                className="w-12 h-12 object-cover rounded"
-                              />
-                              <div>
-                                <h3 className="font-medium text-white">
-                                  {playlist.name}
-                                </h3>
-                                <p className="text-sm text-zinc-400">
-                                  {playlist.tracks.total} tracks
-                                </p>
-                              </div>
-                            </CardContent>
-                          </Card>
-                          <PlaylistDialog
-                            playlist={playlist}
-                            isOpen={openPlaylistId === playlist.id}
-                            onOpenChange={(open) =>
-                              setOpenPlaylistId(open ? playlist.id : null)
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-
-              <DevicesSection />
+  const renderUserProfile = () => (
+    <Card className="relative overflow-hidden border bg-gradient-to-br from-white to-zinc-100/50 dark:from-zinc-900 dark:to-zinc-800 p-4 sm:p-6 md:p-8 hover:shadow-xl transition-all duration-300">
+      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 dark:from-green-500/10 dark:to-emerald-500/10 pointer-events-none" />
+      <div className="flex flex-row items-center gap-6 md:gap-8 relative z-10">
+        <Avatar className="h-24 w-24 md:h-32 md:w-32 ring-4 ring-green-500/20 hover:ring-green-500/40 transition-all duration-300 shadow-xl flex-shrink-0">
+          <AvatarImage
+            src={otherUserData?.images?.[0]?.url || "/default-avatar.png"}
+            alt="Spotify Avatar"
+            className="object-cover"
+          />
+          <AvatarFallback className="text-2xl md:text-4xl font-bold bg-gradient-to-br from-green-400 to-emerald-600">
+            {spotifyData?.display_name ? spotifyData.display_name[0] : "S"}
+          </AvatarFallback>
+        </Avatar>
+        {spotifyData && (
+          <CardContent className="p-0 space-y-3 md:space-y-4">
+            <h3 className="font-bold text-2xl md:text-4xl bg-gradient-to-r from-green-600 to-emerald-700 dark:from-green-400 dark:to-emerald-500 bg-clip-text text-transparent">
+              {spotifyData.display_name}
+            </h3>
+            <div className="space-y-2">
+              <p className="text-zinc-600 dark:text-zinc-400 flex items-center gap-2">
+                <span className="font-semibold text-lg md:text-xl text-zinc-900 dark:text-white">
+                  {otherUserData?.followers?.total.toLocaleString()}
+                </span>
+                Followers
+              </p>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Location:{" "}
+                <span className="text-zinc-900 dark:text-white">
+                  {spotifyData.country}
+                </span>
+              </p>
             </div>
-
-            <div className="space-y-6">
-              <CurrentlyPlaying track={currentTrack} />
-              <RecentlyPlayed items={recentlyPlayed} />
-              <QueueSection queue={queue} />
-            </div>
-          </div>
+          </CardContent>
         )}
-      </main>
-    </>
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 ">
+      {!isConnected ? (
+        renderConnectCard()
+      ) : (
+        <>
+          {renderUserProfile()}
+
+          <Tabs defaultValue="overview" className="space-y-6 rounded-xl">
+            <TabsList className="w-full justify-start border-b rounded-xl px-[0.7rem] h-12">
+              <TabsTrigger value="overview">
+                <PlayCircle className="w-4 h-4 mr-2" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="playlists">
+                <ListMusic className="w-4 h-4 mr-2" />
+                Playlists
+              </TabsTrigger>
+              <TabsTrigger value="recent">
+                <Clock className="w-4 h-4 mr-2" />
+                Recent
+              </TabsTrigger>
+              <TabsTrigger value="devices">
+                <Radio className="w-4 h-4 mr-2" />
+                Devices
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-6 h-[280px] flex flex-col">
+                  <CardHeader className="px-0 pt-0">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <PlayCircle className="w-5 h-5" />
+                      Now Playing
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-0 pb-0 flex-1">
+                    <CurrentlyPlaying track={currentTrack} />
+                  </CardContent>
+                </Card>
+
+                {/* Queue Card */}
+                <Card className="p-6 h-[440px] flex flex-col">
+                  <CardHeader className="px-0 pt-0 space-y-2">
+                    <CardTitle className="text-xl font-semibold flex items-center gap-2">
+                      <ListMusic className="w-5 h-5" />
+                      Up Next
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-0 pb-0 flex-1">
+                    <QueueSection queue={queue} />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="playlists" className="space-y-4">
+              <PlaylistSection
+                playlists={playlists}
+                onSelect={setOpenPlaylistId}
+              />
+              {openPlaylistId && (
+                <PlaylistDialog
+                  playlist={playlists.find((p) => p.id === openPlaylistId)!}
+                  isOpen={!!openPlaylistId}
+                  onOpenChange={(open) =>
+                    setOpenPlaylistId(open ? openPlaylistId : null)
+                  }
+                />
+              )}
+            </TabsContent>
+
+            <TabsContent value="recent">
+              <RecentlyPlayed items={recentlyPlayed} />
+            </TabsContent>
+
+            <TabsContent value="devices">
+              <DevicesSection />
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
+    </div>
   );
 };
 

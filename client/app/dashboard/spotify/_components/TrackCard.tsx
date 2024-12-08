@@ -21,11 +21,18 @@ import {
   nextSpotifyTrack,
   previousSpotifyTrack,
 } from "@/lib/spotify";
-import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Info } from "lucide-react";
+
+interface ArtistDetails {
+  id: string;
+  name: string;
+  genres: string[];
+}
 
 export const TrackCard = ({ track }: { track: spotifyTrack }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [localPlayingState, setLocalPlayingState] = useState(track.is_playing);
+  const [artistDetails, setArtistDetails] = useState<ArtistDetails[]>([]);
   const formattedDuration = `${Math.floor(track.duration_ms / 60000)}:${(
     (track.duration_ms % 60000) /
     1000
@@ -50,9 +57,8 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
 
   const handlePlayPause = async (e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop event from bubbling up to card
+    e.stopPropagation();
 
-    // Update local state immediately
     setLocalPlayingState(!localPlayingState);
 
     try {
@@ -61,11 +67,10 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
       } else {
         await playSpotifyTrack({
           uris: [`spotify:track:${track.id}`],
-          position_ms: track.progress_ms, // Resume from current position
+          position_ms: track.progress_ms,
         });
       }
     } catch (error) {
-      // Revert local state if there's an error
       setLocalPlayingState(localPlayingState);
       console.error("Failed to control playback:", error);
     }
@@ -91,87 +96,137 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
     }
   };
 
-  // Update localPlayingState when track.is_playing changes from API
+  const fetchArtistDetails = async () => {
+    try {
+      const token = localStorage.getItem("spotify_access_token");
+      const artistPromises = track.artists.map((artist) =>
+        fetch(`https://api.spotify.com/v1/artists/${artist.id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }).then((res) => res.json())
+      );
+
+      const artistsData = await Promise.all(artistPromises);
+      setArtistDetails(
+        artistsData.map((artist) => ({
+          id: artist.id,
+          name: artist.name,
+          genres: artist.genres,
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to fetch artist details:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isModalOpen) {
+      fetchArtistDetails();
+    }
+  }, [isModalOpen]);
+
   useEffect(() => {
     setLocalPlayingState(track.is_playing);
   }, [track.is_playing]);
 
   return (
-    <>
-      <Card
-        onClick={() => setIsModalOpen(true)}
-        className="mt-6 cursor-pointer group hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-zinc-50/50 to-zinc-100/50 dark:from-zinc-900/50 dark:to-zinc-800/50 border-zinc-200 dark:border-zinc-700/50"
-      >
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="relative w-16 h-16 group-hover:w-20 group-hover:h-20 transition-all duration-300">
-              <img
-                src={track.album.images[0]?.url}
-                alt={track.album.name}
-                className="w-full h-full object-cover rounded-md shadow-lg"
-              />
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-all duration-300 rounded-md" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg text-zinc-900 dark:text-white group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
-                {track.name}
-              </h3>
-              <p className="text-zinc-600 dark:text-zinc-400 text-sm">
-                {track.artists.map((artist) => artist.name).join(", ")}
-              </p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-zinc-500">
-                  {formattedProgress} / {formattedDuration}
-                </span>
+    <div className="h-full flex flex-col">
+      <div className="flex gap-6">
+        <div className="relative group">
+          <img
+            src={track.album.images[0]?.url}
+            alt={track.album.name}
+            className="w-32 h-32 rounded-lg shadow-md"
+          />
+          <Button
+            size="icon"
+            variant="secondary"
+            className="absolute bottom-2 right-2 w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/75 text-white border-none"
+            onClick={() => setIsModalOpen(true)}
+          >
+            <Info className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-between min-w-0">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-xl text-zinc-900 dark:text-white truncate">
+                  {track.name}
+                </h3>
                 {track.explicit && (
-                  <span className="text-xs px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">
-                    Explicit
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded">
+                    E
                   </span>
                 )}
               </div>
+              <p className="text-base text-zinc-600 dark:text-zinc-400 truncate">
+                {track.artists.map((artist) => artist.name).join(", ")}
+              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">
+                {track.album.name}
+              </p>
             </div>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="w-8 h-8 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+              onClick={() => setIsModalOpen(true)}
+            >
+              <Info className="w-4 h-4" />
+            </Button>
           </div>
 
-          <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500/80 dark:bg-green-500 transition-all duration-500 ease-linear"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-
-          <div className="flex justify-center items-center gap-4">
+          {/* Playback Controls */}
+          <div className="flex items-center gap-3">
             <Button
               size="sm"
               variant="ghost"
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={handlePrevious}
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <SkipBack className="w-4 h-4" />
             </Button>
             <Button
-              size="sm"
-              variant="ghost"
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              size="icon"
               onClick={handlePlayPause}
+              className="bg-green-500 hover:bg-green-600 text-white rounded-full w-10 h-10"
             >
               {localPlayingState ? (
-                <Pause className="w-4 h-4" />
+                <Pause className="w-5 h-5" />
               ) : (
-                <Play className="w-4 h-4" />
+                <Play className="w-5 h-5" />
               )}
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={handleNext}
+              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <SkipForward className="w-4 h-4" />
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
+      {/* Progress Bar */}
+      <div className="mt-6 space-y-1">
+        <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-green-500 transition-all duration-1000 ease-linear"
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+        <div className="flex justify-between items-center text-xs text-zinc-500">
+          <span>{formattedProgress}</span>
+          <span>{formattedDuration}</span>
+        </div>
+      </div>
+
+      {/* Track Info Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-2xl">
           <DialogHeader>
@@ -196,12 +251,56 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
             </div>
             <div className="space-y-6">
               <div>
-                <h3 className="text-2xl font-bold text-green-400">
+                <h3 className="text-2xl font-bold text-green-400 flex items-center gap-2">
                   {track.name}
+                  {track.explicit && (
+                    <span className="inline-block px-2 py-1 text-xs font-medium bg-zinc-800 text-zinc-300 rounded">
+                      E
+                    </span>
+                  )}
                 </h3>
-                <p className="text-lg text-zinc-400">
-                  {track.artists.map((artist) => artist.name).join(", ")}
-                </p>
+                <div className="space-y-4 mt-2">
+                  {artistDetails.map((artist) => (
+                    <div key={artist.id} className="space-y-2">
+                      <a
+                        href={
+                          track.artists.find((a) => a.id === artist.id)
+                            ?.external_urls.spotify
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-zinc-300 hover:text-white hover:underline transition-colors"
+                      >
+                        {artist.name}
+                      </a>
+                      {artist.genres.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {artist.genres.map((genre) => (
+                            <span
+                              key={genre}
+                              className="px-2 py-0.5 text-xs bg-zinc-800/50 text-zinc-400 rounded-full"
+                            >
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-zinc-400">Album Type</p>
+                  <p className="font-medium capitalize">
+                    {track.album.album_type}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-zinc-400">Release Date</p>
+                  <p className="font-medium">{formattedDate}</p>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -247,21 +346,25 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                {track.preview_url && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-zinc-400">Preview:</span>
-                      <audio
-                        controls
-                        className="w-full h-8 [&::-webkit-media-controls-panel]:bg-zinc-800 [&::-webkit-media-controls-current-time-display]:text-white [&::-webkit-media-controls-time-remaining-display]:text-white"
-                      >
-                        <source src={track.preview_url} type="audio/mpeg" />
-                        Your browser does not support the audio element.
-                      </audio>
-                    </div>
-                  </div>
-                )}
               </div>
+
+              {/* Preview section */}
+              {track.preview_url && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-zinc-400">Preview:</span>
+                    <audio
+                      controls
+                      className="w-full h-8 [&::-webkit-media-controls-panel]:bg-zinc-800 [&::-webkit-media-controls-current-time-display]:text-white [&::-webkit-media-controls-time-remaining-display]:text-white"
+                    >
+                      <source src={track.preview_url} type="audio/mpeg" />
+                      Your browser does not support the audio element.
+                    </audio>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
               <div className="flex gap-4">
                 <Button
                   onClick={() =>
@@ -276,6 +379,6 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };

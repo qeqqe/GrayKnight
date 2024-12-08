@@ -912,7 +912,7 @@ app.get("/refresh_token", async (req, res) => {
     res.json({
       access_token: data.access_token,
       expires_in: data.expires_in,
-      refresh_token: data.refresh_token, // Include new refresh token if provided
+      refresh_token: data.refresh_token,
     });
   } catch (error) {
     console.error("Token refresh error:", {

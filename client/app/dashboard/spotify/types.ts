@@ -31,6 +31,9 @@ export interface spotifyTrack {
   popularity?: number;
   progress_ms: number;
   is_playing: boolean;
+  external_urls?: {
+    spotify: string;
+  };
 }
 
 export interface spotifyData {

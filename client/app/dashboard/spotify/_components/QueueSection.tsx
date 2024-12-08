@@ -1,9 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { spotifyTrack } from "../types";
 import { playSpotifyTrack } from "@/lib/spotify";
+import { ScrollArea } from "@radix-ui/react-scroll-area";
 
 export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
-  if (!queue.length) return null;
+  if (!queue.length) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-zinc-500">
+        <p className="text-center">
+          Queue is empty
+          <br />
+          <span className="text-sm">Add some tracks to your queue</span>
+        </p>
+      </div>
+    );
+  }
 
   const handlePlay = async (trackId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -17,15 +28,12 @@ export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
   };
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">
-        Queue
-      </h2>
-      <div className="space-y-2 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-lg p-4">
+    <div className="h-full flex flex-col">
+      <ScrollArea className="flex-1 -mr-6 pr-6">
         {queue.slice(0, 5).map((track, index) => (
           <div
             key={track.id + index}
-            className="flex items-center gap-3 p-2 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50 rounded-md group"
+            className="flex items-center gap-3 p-3 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50 rounded-md group"
           >
             <img
               src={track.album.images[2]?.url || "/placeholder.png"}
@@ -54,7 +62,7 @@ export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
             </Button>
           </div>
         ))}
-      </div>
+      </ScrollArea>
     </div>
   );
 };

@@ -1,69 +1,60 @@
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { SpotifyPlaylistItem } from "../types";
-import { PlaylistDialog } from "./PlaylistDialog";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Music2 } from "lucide-react";
+import { SpotifyPlaylistItem } from "../types";
+
+interface PlaylistSectionProps {
+  playlists: SpotifyPlaylistItem[];
+  onSelect: (id: string) => void;
+}
 
 export const PlaylistSection = ({
   playlists,
-  openPlaylistId,
-  setOpenPlaylistId,
-}: {
-  playlists: SpotifyPlaylistItem[];
-  openPlaylistId: string | null;
-  setOpenPlaylistId: (id: string | null) => void;
-}) => {
-  if (!Array.isArray(playlists) || playlists.length === 0) return null;
-
-  const validPlaylists = playlists.filter(
-    (p) => p && p.id && p.name && p.images && Array.isArray(p.images)
-  );
-
-  if (validPlaylists.length === 0) return null;
-
+  onSelect,
+}: PlaylistSectionProps) => {
   return (
-    <div className="space-y-2">
-      <h2 className="text-xl font-semibold text-white sticky top-0 bg-background z-10">
-        Your Playlists ({validPlaylists.length})
-      </h2>
-
-      <div className="h-[320px] overflow-y-auto pr-4 space-y-2">
-        {validPlaylists.map((playlist) => {
-          const imageUrl = playlist?.images?.[0]?.url || "/placeholder.png";
-          const playlistName = playlist?.name || "Untitled Playlist";
-          const trackCount = playlist?.tracks?.total ?? 0;
-
-          return (
-            <div key={playlist.id}>
-              <Card
-                className="bg-zinc-900/50 hover:bg-zinc-900 transition-colors cursor-pointer"
-                onClick={() => setOpenPlaylistId(playlist.id)}
-              >
-                <CardContent className="flex items-center gap-3 p-3">
-                  <img
-                    src={imageUrl}
-                    alt={playlistName}
-                    className="w-12 h-12 object-cover rounded"
-                  />
-                  <div>
-                    <h3 className="font-medium text-white">{playlistName}</h3>
-                    <p className="text-sm text-zinc-400">{trackCount} tracks</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <PlaylistDialog
-                playlist={playlist}
-                isOpen={openPlaylistId === playlist.id}
-                onOpenChange={(open) =>
-                  setOpenPlaylistId(open ? playlist.id : null)
-                }
-              />
+    <Card>
+      <CardHeader>
+        <CardTitle>Your Playlists</CardTitle>
+        <CardDescription>
+          Manage and play your Spotify playlists
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[400px] pr-4">
+          {playlists.map((playlist) => (
+            <div
+              key={playlist.id}
+              className="flex items-center gap-4 py-4 border-b cursor-pointer hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50 rounded-md transition-colors p-2"
+              onClick={() => onSelect(playlist.id)}
+            >
+              <Avatar className="h-12 w-12">
+                <AvatarImage
+                  src={playlist.images[0]?.url}
+                  alt={playlist.name}
+                />
+                <AvatarFallback>
+                  <Music2 className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <p className="font-medium">{playlist.name}</p>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {playlist.tracks.total} tracks • By{" "}
+                  {playlist.owner.display_name}
+                </p>
+              </div>
             </div>
-          );
-        })}
-      </div>
-    </div>
+          ))}
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 };
