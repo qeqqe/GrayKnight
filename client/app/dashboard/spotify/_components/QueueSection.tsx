@@ -3,7 +3,10 @@ import { spotifyTrack } from "../types";
 import { playSpotifyTrack } from "@/lib/spotify";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 
+// shows what's coming up next in your spotify queue
+
 export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
+  // no tracks? no problem
   if (!queue.length) {
     return (
       <div className="flex items-center justify-center h-[300px] text-zinc-500">
@@ -16,6 +19,7 @@ export const QueueSection = ({ queue }: { queue: spotifyTrack[] }) => {
     );
   }
 
+  // play selected track
   const handlePlay = async (trackId: string, e: React.MouseEvent) => {
     e.preventDefault();
     try {

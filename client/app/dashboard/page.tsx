@@ -38,7 +38,7 @@ const DashboardPage = () => {
   return (
     <div className="h-screen bg-background">
       <div className="border-b">
-        <header className="container flex h-16 items-center px-4">
+        <header className="container px-6 sm:px-8 flex h-16 items-center mx-auto">
           <div className="flex items-center gap-6">
             <h1 className="text-xl font-semibold">GrayKnight</h1>
             <nav className="flex items-center gap-6">
@@ -87,7 +87,7 @@ const DashboardPage = () => {
         </header>
       </div>
 
-      <main className="container p-4 md:p-8">
+      <main className="container px-4 sm:px-6 md:px-8 py-6 md:py-8 mx-auto">
         {activeTab === "lastfm" ? <LastFmDashboard /> : <SpotifyDashboard />}
       </main>
     </div>

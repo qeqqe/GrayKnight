@@ -203,7 +203,7 @@ export interface AlbumImage {
 export interface SpotifyDevice {
   id: string;
   is_active: boolean;
-  is_private_session: boolean;
+  is_private: boolean;
   is_restricted: boolean;
   name: string;
   type: string;
@@ -214,3 +214,51 @@ export interface SpotifyDevice {
 export interface SpotifyDevicesResponse {
   devices: SpotifyDevice[];
 }
+
+// Rename the interface to avoid naming conflict
+export interface SpotifyCategoryResponse {
+  href: string;
+  id: string;
+  icons: {
+    height: number;
+    url: string;
+    width: number;
+  }[];
+  name: string;
+}
+
+export interface CategoryPlaylistsResponse {
+  playlists: {
+    href: string;
+    items: SpotifyPlaylistItem[];
+    limit: number;
+    next: string | null;
+    offset: number;
+    previous: string | null;
+    total: number;
+  };
+}
+
+export const SPOTIFY_CATEGORIES = [
+  "pop",
+  "hiphop",
+  "workout",
+  "party",
+  "chill",
+  "focus",
+  "sleep",
+  "country",
+  "rock",
+  "jazz",
+  "classical",
+  "gaming",
+  "romance",
+  "travel",
+  "summer",
+  "holiday",
+  "dinner",
+  "mood",
+  "kids",
+] as const;
+
+export type SpotifyCategory = (typeof SPOTIFY_CATEGORIES)[number];

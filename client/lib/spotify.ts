@@ -1,3 +1,5 @@
+// hood spotify api wrapper functions
+
 export async function playSpotifyTrack(options: {
   uri?: string;
   context_uri?: string;
@@ -42,7 +44,36 @@ export async function playSpotifyTrack(options: {
   }
 }
 
+// slide this track into the queue like my...
+export async function addToQueue(trackUri: string, deviceId?: string) {
+  // no token no dd party
+  const token = localStorage.getItem("spotify_access_token");
+  if (!token) throw new Error("No Spotify access token found");
+
+  const params = new URLSearchParams({
+    uri: trackUri,
+    ...(deviceId && { device_id: deviceId }),
+  });
+
+  const response = await fetch(
+    `https://api.spotify.com/v1/me/player/queue?${params.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error.message || "Failed to add to queue");
+  }
+}
+
+// basic playback control - does what it says
 export const pauseSpotifyTrack = async (deviceId?: string) => {
+  // no token no diddy party
   const token = localStorage.getItem("spotify_access_token");
   const endpoint = deviceId
     ? `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`
@@ -60,7 +91,9 @@ export const pauseSpotifyTrack = async (deviceId?: string) => {
   }
 };
 
+// skip it like the haters you don't wanna hear about
 export const nextSpotifyTrack = async (deviceId?: string) => {
+  // no token no dd party
   const token = localStorage.getItem("spotify_access_token");
   const endpoint = deviceId
     ? `https://api.spotify.com/v1/me/player/next?device_id=${deviceId}`
@@ -78,6 +111,7 @@ export const nextSpotifyTrack = async (deviceId?: string) => {
   }
 };
 
+// when you accidentally skipped a banger
 export const previousSpotifyTrack = async (deviceId?: string) => {
   const token = localStorage.getItem("spotify_access_token");
   const endpoint = deviceId

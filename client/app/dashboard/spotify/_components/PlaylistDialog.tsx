@@ -12,6 +12,11 @@ import {
   SpotifyPlaylistTrack,
 } from "../types";
 import { playSpotifyTrack } from "@/lib/spotify";
+import { QueueButton } from "./QueueButton";
+import { Play } from "lucide-react";
+
+// this bad boy handles all the playlist vibes
+// shows tracks, lets you play them, and even queue them up
 
 export const PlaylistDialog = ({
   playlist,
@@ -26,8 +31,10 @@ export const PlaylistDialog = ({
   const [loading, setLoading] = useState(true);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  // infinite scroll magic happens here
   const loadingRef = useRef<HTMLDivElement>(null);
 
+  // yoink the tracks from spotify's api
   const fetchTracks = async (url: string) => {
     try {
       const token = localStorage.getItem("spotify_access_token");
@@ -50,6 +57,7 @@ export const PlaylistDialog = ({
     }
   };
 
+  // infinite scroll observer - keeps the tunes flowing
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -68,6 +76,7 @@ export const PlaylistDialog = ({
     return () => observer.disconnect();
   }, [hasMore, loading, nextUrl]);
 
+  // cleanup crew - reset everything when we close
   useEffect(() => {
     if (!isOpen) {
       setTracks([]);
@@ -80,6 +89,7 @@ export const PlaylistDialog = ({
     fetchTracks(`${playlist.tracks.href}?limit=50`);
   }, [playlist.tracks.href, isOpen]);
 
+  // spin up a track in the context of its playlist
   const handlePlay = async (trackId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -154,14 +164,16 @@ export const PlaylistDialog = ({
                     .padStart(2, "0")}
                 </div>
                 {item.track.external_urls.spotify && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => handlePlay(item.track.id, e)}
-                  >
-                    Play
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => handlePlay(item.track.id, e)}
+                    >
+                      <Play className="w-4 h-4" />
+                    </Button>
+                    <QueueButton trackId={item.track.id} />
+                  </div>
                 )}
               </div>
             ))}
