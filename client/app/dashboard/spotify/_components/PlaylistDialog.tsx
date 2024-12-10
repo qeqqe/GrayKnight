@@ -18,23 +18,27 @@ import { Play } from "lucide-react";
 // this bad boy handles all the playlist vibes
 // shows tracks, lets you play them, and even queue them up
 
+interface PlaylistDialogProps {
+  playlist: SpotifyPlaylistItem | null; // Update this line
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
 export const PlaylistDialog = ({
   playlist,
   isOpen,
   onOpenChange,
-}: {
-  playlist: SpotifyPlaylistItem;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-}) => {
+}: PlaylistDialogProps) => {
+  // State for infinite scroll implementation
   const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  // infinite scroll magic happens here
+
+  // Reference for intersection observer
   const loadingRef = useRef<HTMLDivElement>(null);
 
-  // yoink the tracks from spotify's api
+  // Fetch tracks with pagination support
   const fetchTracks = async (url: string) => {
     try {
       const token = localStorage.getItem("spotify_access_token");
@@ -57,7 +61,7 @@ export const PlaylistDialog = ({
     }
   };
 
-  // infinite scroll observer - keeps the tunes flowing
+  // Infinite scroll implementation using Intersection Observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -76,8 +80,31 @@ export const PlaylistDialog = ({
     return () => observer.disconnect();
   }, [hasMore, loading, nextUrl]);
 
-  // cleanup crew - reset everything when we close
+  // Reset state when dialog closes
   useEffect(() => {
+    const fetchTracks = async () => {
+      if (!playlist?.id) return;
+      try {
+        const token = localStorage.getItem("spotify_access_token");
+        const response = await fetch(`${playlist.tracks.href}?limit=50`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch tracks");
+
+        const data: PlaylistResponse = await response.json();
+        setTracks((prev) => [...prev, ...data.items]);
+        setNextUrl(data.next);
+        setHasMore(!!data.next);
+      } catch (error) {
+        console.error("Failed to fetch playlist tracks:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (!isOpen) {
       setTracks([]);
       setNextUrl(null);
@@ -86,8 +113,8 @@ export const PlaylistDialog = ({
       return;
     }
 
-    fetchTracks(`${playlist.tracks.href}?limit=50`);
-  }, [playlist.tracks.href, isOpen]);
+    fetchTracks();
+  }, [playlist?.id, isOpen]);
 
   // spin up a track in the context of its playlist
   const handlePlay = async (trackId: string, e: React.MouseEvent) => {
@@ -95,7 +122,7 @@ export const PlaylistDialog = ({
     e.stopPropagation();
     try {
       await playSpotifyTrack({
-        context_uri: `spotify:playlist:${playlist.id}`,
+        context_uri: `spotify:playlist:${playlist?.id}`,
         offset: {
           uri: `spotify:track:${trackId}`,
         },
@@ -113,22 +140,22 @@ export const PlaylistDialog = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
-                src={playlist.images[0]?.url || "/placeholder.png"}
-                alt={playlist.name}
+                src={playlist?.images[0]?.url || "/placeholder.png"}
+                alt={playlist?.name}
                 className="w-16 h-16 object-cover rounded-md"
               />
               <div>
                 <DialogTitle className="text-2xl font-bold text-zinc-900 dark:text-white">
-                  {playlist.name}
+                  {playlist?.name}
                 </DialogTitle>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {playlist.tracks.total} tracks
+                  {playlist?.tracks.total} tracks
                 </p>
               </div>
             </div>
             <Button
               onClick={() =>
-                window.open(playlist.external_urls.spotify, "_blank")
+                window.open(playlist?.external_urls.spotify, "_blank")
               }
               className="bg-green-500 hover:bg-green-600 text-white"
             >

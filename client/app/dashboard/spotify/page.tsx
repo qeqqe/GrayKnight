@@ -26,208 +26,25 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Music2, Clock, PlayCircle, ListMusic, Radio } from "lucide-react";
+import { Search as SearchIcon } from "lucide-react";
 
-interface spotifyTrack {
-  id: string;
-  name: string;
-  duration_ms: number;
-  explicit: boolean;
-
-  artists: {
-    external_urls: {
-      spotify: string;
-    };
-    href: string;
-    id: string;
-    name: string;
-    type: string;
-    uri: string;
-  }[];
-
-  album: {
-    album_type: string;
-    name: string;
-    images: {
-      url: string;
-      height?: number;
-      width?: number;
-    }[];
-    external_urls: {
-      spotify: string;
-    };
-    release_date: string;
-    release_date_precision: "year" | "month" | "day";
-  };
-
-  preview_url: string | null;
-  popularity?: number;
-  progress_ms: number;
-  is_playing: boolean;
-}
-
-interface spotifyData {
-  display_name: string;
-  country: string;
-  email: string;
-  id: string;
-  uri: string;
-}
-
-interface spotifyOtherData {
-  followers: {
-    total: number;
-  };
-  images: {
-    url: string;
-    height: number;
-    width: number;
-  }[];
-}
-
-interface SpotifyPlaylist {
-  href: string;
-  limit: number;
-  next: string;
-  offset: number;
-  previous: string;
-  total: number;
-  items: SpotifyPlaylistItem[];
-}
-
-interface SpotifyPlaylistItem {
-  collaborative: boolean;
-  description: string;
-  external_urls: {
-    spotify: string;
-  };
-  href: string;
-  id: string;
-  images: SpotifyImage[];
-  name: string;
-  owner: {
-    display_name: string;
-    external_urls: {
-      spotify: string;
-    };
-    href: string;
-    id: string;
-    type: string;
-    uri: string;
-  };
-  primary_color: string | null;
-  public: boolean;
-  snapshot_id: string;
-  tracks: {
-    href: string;
-    total: number;
-  };
-  type: string;
-  uri: string;
-}
-
-interface SpotifyImage {
-  height: number | null;
-  url: string;
-  width: number | null;
-}
-
-interface SpotifyPlaylistTrack {
-  track: {
-    id: string;
-    name: string;
-    duration_ms: number;
-    explicit: boolean;
-    artists: {
-      name: string;
-    }[];
-    album: {
-      name: string;
-      images: SpotifyImage[];
-    };
-    external_urls: {
-      spotify: string;
-    };
-  };
-  added_at: string;
-}
-
-interface PlaylistResponse {
-  items: SpotifyPlaylistTrack[];
-  next: string | null;
-  total: number;
-}
-
-interface SpotifyQueue {
-  currently_playing: spotifyTrack | null;
-  queue: spotifyTrack[];
-}
-
-interface RecentlyPlayedResponse {
-  items: RecentlyPlayedItem[];
-  next: string | null;
-  cursors: {
-    after: string;
-    before: string;
-  };
-  limit: number;
-}
-
-interface SpotifyRecentlyPlayedResponse {
-  items: RecentlyPlayedItem[];
-  next: string | null;
-  cursors: {
-    after: string;
-    before: string;
-  };
-  limit: number;
-  href: string;
-}
-
-interface RecentlyPlayedItem {
-  track: {
-    album: {
-      album_type: string;
-      artists: Artist[];
-      images: AlbumImage[];
-      name: string;
-      release_date: string;
-      external_urls: {
-        spotify: string;
-      };
-    };
-    artists: Artist[];
-    duration_ms: number;
-    explicit: boolean;
-    external_urls: {
-      spotify: string;
-    };
-    id: string;
-    name: string;
-    popularity: number;
-    preview_url: string | null;
-  };
-  played_at: string;
-  context: {
-    type: string;
-    external_urls: {
-      spotify: string;
-    };
-    uri: string;
-  };
-}
-
-interface Artist {
-  external_urls: {
-    spotify: string;
-  };
-  name: string;
-}
-
-interface AlbumImage {
-  height: number;
-  url: string;
-  width: number;
-}
+// Remove all local interface definitions and import them from types.ts
+import type {
+  spotifyTrack,
+  spotifyData,
+  spotifyOtherData,
+  SpotifyPlaylist,
+  SpotifyPlaylistItem,
+  SpotifyImage,
+  SpotifyPlaylistTrack,
+  PlaylistResponse,
+  SpotifyQueue,
+  RecentlyPlayedResponse,
+  SpotifyRecentlyPlayedResponse,
+  RecentlyPlayedItem,
+  Artist,
+  AlbumImage,
+} from "./types";
 
 import {
   CurrentlyPlaying,
@@ -237,6 +54,7 @@ import {
   TrackCard,
   PlaylistDialog,
   DevicesSection,
+  Search,
 } from "./_components";
 
 const SpotifyDashboard = () => {
@@ -457,6 +275,8 @@ const SpotifyDashboard = () => {
             popularity: data.item.popularity || 0,
             progress_ms: data.progress_ms || 0,
             is_playing: data.is_playing,
+            uri: data.item.uri, // Add this line
+            external_urls: data.item.external_urls,
           };
 
           // console.log("Processed track data:", trackData);
@@ -813,6 +633,10 @@ const SpotifyDashboard = () => {
                 <Radio className="w-4 h-4 mr-2" />
                 Devices
               </TabsTrigger>
+              <TabsTrigger value="search">
+                <SearchIcon className="w-4 h-4 mr-2" />
+                Search
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -866,6 +690,10 @@ const SpotifyDashboard = () => {
 
             <TabsContent value="devices">
               <DevicesSection />
+            </TabsContent>
+
+            <TabsContent value="search">
+              <Search />
             </TabsContent>
           </Tabs>
         </>

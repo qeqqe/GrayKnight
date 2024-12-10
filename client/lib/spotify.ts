@@ -129,3 +129,48 @@ export const previousSpotifyTrack = async (deviceId?: string) => {
     throw new Error("Failed to go to previous track");
   }
 };
+
+export async function searchSpotify(
+  query: string,
+  types: string[],
+  options?: {
+    market?: string;
+    limit?: number;
+    offset?: number;
+  }
+) {
+  const token = localStorage.getItem("spotify_access_token");
+  if (!token) throw new Error("No Spotify access token found");
+
+  const params = new URLSearchParams({
+    q: query,
+    type: types.join(","),
+    limit: (options?.limit || 20).toString(),
+    offset: (options?.offset || 0).toString(),
+  });
+
+  if (options?.market) {
+    params.append("market", options.market);
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.spotify.com/v1/search?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error.message || "Failed to search");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Search failed:", error);
+    throw error;
+  }
+}

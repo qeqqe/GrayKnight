@@ -14,6 +14,7 @@ export interface spotifyTrack {
     uri: string;
   }[];
   album: {
+    id: string; // Add this line
     album_type: string;
     name: string;
     images: {
@@ -34,6 +35,7 @@ export interface spotifyTrack {
   external_urls?: {
     spotify: string;
   };
+  uri: string; // Add this line
 }
 
 export interface spotifyData {
@@ -215,7 +217,6 @@ export interface SpotifyDevicesResponse {
   devices: SpotifyDevice[];
 }
 
-// Rename the interface to avoid naming conflict
 export interface SpotifyCategoryResponse {
   href: string;
   id: string;
@@ -262,3 +263,132 @@ export const SPOTIFY_CATEGORIES = [
 ] as const;
 
 export type SpotifyCategory = (typeof SPOTIFY_CATEGORIES)[number];
+
+export const SEARCH_TYPES = [
+  "track",
+  "album",
+  "artist",
+  "playlist",
+  "show",
+  "episode",
+  "audiobook",
+] as const;
+
+export type SpotifySearchType = (typeof SEARCH_TYPES)[number];
+
+export interface SpotifyArtist {
+  id: string;
+  name: string;
+  images: SpotifyImage[];
+  external_urls: {
+    spotify: string;
+  };
+}
+
+export interface SpotifyAlbum {
+  id: string;
+  name: string;
+  images: SpotifyImage[];
+  artists: {
+    name: string;
+  }[];
+  external_urls: {
+    spotify: string;
+  };
+}
+
+export interface SpotifyShow {
+  id: string;
+  name: string;
+  description: string;
+  publisher: string;
+  images: SpotifyImage[];
+  external_urls: {
+    spotify: string;
+  };
+}
+
+interface SpotifySearchPlaylistItem {
+  collaborative: boolean;
+  description: string;
+  external_urls: {
+    spotify: string;
+  };
+  href: string;
+  id: string;
+  images: {
+    height: number | null;
+    url: string;
+    width: number | null;
+  }[];
+  name: string;
+  owner: {
+    display_name: string;
+    external_urls: {
+      spotify: string;
+    };
+    href: string;
+    id: string;
+    type: string;
+    uri: string;
+  };
+  primary_color: null;
+  public: boolean;
+  snapshot_id: string;
+  tracks: {
+    href: string;
+    total: number;
+  };
+  type: string;
+  uri: string;
+}
+
+export interface SpotifySearchResponse {
+  tracks?: {
+    href: string;
+    items: spotifyTrack[];
+    limit: number;
+    next: string | null;
+    offset: number;
+    previous: string | null;
+    total: number;
+  };
+  artists?: {
+    href: string;
+    items: SpotifyArtist[];
+    limit: number;
+    next: string | null;
+    offset: number;
+    previous: string | null;
+    total: number;
+  };
+  albums?: {
+    href: string;
+    items: SpotifyAlbum[];
+    limit: number;
+    next: string | null;
+    offset: number;
+    previous: string | null;
+    total: number;
+  };
+  playlists?: {
+    href: string;
+    items: SpotifySearchPlaylistItem[];
+    limit: number;
+    next: string | null;
+    offset: number;
+    previous: string | null;
+    total: number;
+  };
+  shows?: {
+    href: string;
+    items: SpotifyShow[];
+    limit: number;
+    next: string | null;
+    offset: number;
+    previous: string | null;
+    total: number;
+  };
+  // Add similar structures for episodes and audiobooks
+  // ...existing code...
+}

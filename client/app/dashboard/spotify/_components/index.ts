@@ -5,3 +5,5 @@ export { QueueSection } from "./QueueSection";
 export { TrackCard } from "./TrackCard";
 export { PlaylistDialog } from "./PlaylistDialog";
 export { DevicesSection } from "./DevicesSection";
+export { Search } from "./Search";
+export { AlbumDialog } from "./AlbumDialog";
