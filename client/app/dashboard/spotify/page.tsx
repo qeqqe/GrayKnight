@@ -25,7 +25,14 @@ import {
 } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Music2, Clock, PlayCircle, ListMusic, Radio } from "lucide-react";
+import {
+  Music2,
+  Clock,
+  PlayCircle,
+  ListMusic,
+  Radio,
+  UserPlus,
+} from "lucide-react";
 import { Search as SearchIcon } from "lucide-react";
 
 // Remove all local interface definitions and import them from types.ts
@@ -56,6 +63,7 @@ import {
   DevicesSection,
   Search,
 } from "./_components";
+import FollowedArtists from "./_components/FollowedArtists";
 
 const SpotifyDashboard = () => {
   const router = useRouter();
@@ -637,6 +645,10 @@ const SpotifyDashboard = () => {
                 <SearchIcon className="w-4 h-4 mr-2" />
                 Search
               </TabsTrigger>
+              <TabsTrigger value="followed">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Followed
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -694,6 +706,9 @@ const SpotifyDashboard = () => {
 
             <TabsContent value="search">
               <Search />
+            </TabsContent>
+            <TabsContent value="followed">
+              <FollowedArtists />
             </TabsContent>
           </Tabs>
         </>

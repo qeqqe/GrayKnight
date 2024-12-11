@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const lastFmService = require("./services/lastfm");
 const passport = require("passport");
 const configurePassport = require("./services/spotify");
+const mongoose = require("mongoose");
 dotenv.config();
 
 console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
@@ -25,7 +26,19 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const app = express();
 const port = process.env.PORT || 3001;
 const verifyToken = require("./components/authVerifier");
-const ConnectDB = require("./components/ConnectDB");
+
+const ConnectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+    });
+    console.log("MongoDB connected");
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    process.exit(1);
+  }
+};
 
 app.use(
   session({

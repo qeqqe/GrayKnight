@@ -139,14 +139,6 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
             alt={track.album.name}
             className="w-32 h-32 rounded-lg shadow-md"
           />
-          <Button
-            size="icon"
-            variant="secondary"
-            className="absolute bottom-2 right-2 w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/75 text-white border-none"
-            onClick={() => setIsModalOpen(true)}
-          >
-            <Info className="w-4 h-4" />
-          </Button>
         </div>
 
         <div className="flex-1 flex flex-col justify-between min-w-0">
