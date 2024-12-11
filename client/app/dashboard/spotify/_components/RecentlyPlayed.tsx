@@ -5,7 +5,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { playSpotifyTrack } from "@/lib/spotify";
 
 export const RecentlyPlayed = ({ items }: { items: RecentlyPlayedItem[] }) => {
-  // Play track while maintaining context
   const handlePlay = async (trackId: string, e: React.MouseEvent) => {
     e.preventDefault();
     try {

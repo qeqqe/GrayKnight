@@ -32,6 +32,7 @@ import {
   ListMusic,
   Radio,
   UserPlus,
+  Heart,
 } from "lucide-react";
 import { Search as SearchIcon } from "lucide-react";
 
@@ -64,6 +65,7 @@ import {
   Search,
 } from "./_components";
 import FollowedArtists from "./_components/FollowedArtists";
+import SavedTrack from "./_components/SavedTrack";
 
 const SpotifyDashboard = () => {
   const router = useRouter();
@@ -641,7 +643,10 @@ const SpotifyDashboard = () => {
         <>
           {renderUserProfile()}
 
-          <Tabs defaultValue="overview" className="space-y-6 rounded-xl">
+          <Tabs
+            defaultValue="overview"
+            className="space-y-6 gap-4 rounded-xl overflow-x-auto"
+          >
             <TabsList className="w-full justify-start border-b rounded-xl px-[0.7rem] h-12">
               <TabsTrigger value="overview">
                 <PlayCircle className="w-4 h-4 mr-2" />
@@ -662,6 +667,10 @@ const SpotifyDashboard = () => {
               <TabsTrigger value="search">
                 <SearchIcon className="w-4 h-4 mr-2" />
                 Search
+              </TabsTrigger>
+              <TabsTrigger value="savedTrack">
+                <Heart className="w-4 h-4 mr-2" />
+                Saved Tracks
               </TabsTrigger>
             </TabsList>
 
@@ -720,6 +729,9 @@ const SpotifyDashboard = () => {
 
             <TabsContent value="search">
               <Search />
+            </TabsContent>
+            <TabsContent value="savedTrack">
+              <SavedTrack />
             </TabsContent>
           </Tabs>
         </>
