@@ -21,7 +21,7 @@ import {
   nextSpotifyTrack,
   previousSpotifyTrack,
 } from "@/lib/spotify";
-import { Play, Pause, SkipBack, SkipForward, Info } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Info, Heart } from "lucide-react";
 
 interface ArtistDetails {
   id: string;
@@ -33,6 +33,7 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [localPlayingState, setLocalPlayingState] = useState(track.is_playing);
   const [artistDetails, setArtistDetails] = useState<ArtistDetails[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
   const formattedDuration = `${Math.floor(track.duration_ms / 60000)}:${(
     (track.duration_ms % 60000) /
     1000
@@ -120,6 +121,46 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
     }
   };
 
+  const checkIfTrackIsSaved = async () => {
+    try {
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch(
+        `https://api.spotify.com/v1/me/tracks/contains?ids=${track.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const [saved] = await response.json();
+      setIsSaved(saved);
+    } catch (error) {
+      console.error("Failed to check track saved status:", error);
+    }
+  };
+
+  const handleSaveTrack = async () => {
+    try {
+      const token = localStorage.getItem("spotify_access_token");
+      const response = await fetch(`https://api.spotify.com/v1/me/tracks`, {
+        method: isSaved ? "DELETE" : "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ids: [track.id],
+        }),
+      });
+
+      if (response.ok) {
+        setIsSaved(!isSaved);
+      }
+    } catch (error) {
+      console.error("Failed to save track:", error);
+    }
+  };
+
   useEffect(() => {
     if (isModalOpen) {
       fetchArtistDetails();
@@ -129,6 +170,10 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
   useEffect(() => {
     setLocalPlayingState(track.is_playing);
   }, [track.is_playing]);
+
+  useEffect(() => {
+    checkIfTrackIsSaved();
+  }, [track.id]);
 
   return (
     <div className="h-full flex flex-col">
@@ -161,14 +206,31 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
                 {track.album.name}
               </p>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="w-8 h-8 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-              onClick={() => setIsModalOpen(true)}
-            >
-              <Info className="w-4 h-4" />
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="icon"
+                variant="ghost"
+                className={`w-8 h-8 ${
+                  isSaved
+                    ? "text-red-500 hover:text-red-600"
+                    : "text-zinc-500 hover:text-red-500"
+                }`}
+                onClick={handleSaveTrack}
+              >
+                <Heart
+                  className="w-4 h-4"
+                  fill={isSaved ? "currentColor" : "none"}
+                />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="w-8 h-8 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                onClick={() => setIsModalOpen(true)}
+              >
+                <Info className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Playback Controls */}
