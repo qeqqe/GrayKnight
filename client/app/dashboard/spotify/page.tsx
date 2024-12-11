@@ -81,6 +81,8 @@ const SpotifyDashboard = () => {
   const [recentlyPlayed, setRecentlyPlayed] = useState<RecentlyPlayedItem[]>(
     []
   );
+  const [showFollowingDialog, setShowFollowingDialog] = useState(false);
+  const [totalFollowing, setTotalFollowing] = useState(0);
 
   const refreshSpotifyToken = async () => {
     try {
@@ -596,12 +598,15 @@ const SpotifyDashboard = () => {
               {spotifyData.display_name}
             </h3>
             <div className="space-y-2">
-              <p className="text-zinc-600 dark:text-zinc-400 flex items-center gap-2">
+              <button
+                onClick={() => setShowFollowingDialog(true)}
+                className="text-zinc-600 dark:text-zinc-400 flex items-center gap-2 hover:text-green-500 transition-colors"
+              >
                 <span className="font-semibold text-lg md:text-xl text-zinc-900 dark:text-white">
-                  {otherUserData?.followers?.total.toLocaleString()}
+                  {totalFollowing}
                 </span>
-                Followers
-              </p>
+                Following
+              </button>
               <p className="text-zinc-600 dark:text-zinc-400">
                 Location:{" "}
                 <span className="text-zinc-900 dark:text-white">
@@ -612,6 +617,19 @@ const SpotifyDashboard = () => {
           </CardContent>
         )}
       </div>
+      <Dialog open={showFollowingDialog} onOpenChange={setShowFollowingDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-green-500" />
+              Following {totalFollowing.toLocaleString()} Artists
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] mt-4">
+            <FollowedArtists onTotalFollowingChange={setTotalFollowing} />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 
@@ -644,10 +662,6 @@ const SpotifyDashboard = () => {
               <TabsTrigger value="search">
                 <SearchIcon className="w-4 h-4 mr-2" />
                 Search
-              </TabsTrigger>
-              <TabsTrigger value="followed">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Followed
               </TabsTrigger>
             </TabsList>
 
@@ -706,9 +720,6 @@ const SpotifyDashboard = () => {
 
             <TabsContent value="search">
               <Search />
-            </TabsContent>
-            <TabsContent value="followed">
-              <FollowedArtists />
             </TabsContent>
           </Tabs>
         </>
