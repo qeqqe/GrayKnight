@@ -25,6 +25,12 @@ import { AlbumDialog } from "./AlbumDialog";
 import { PlaylistDialog } from "./PlaylistDialog";
 import ArtistTopTrackDialog from "./ArtistTopTrackDialog";
 
+interface selectedArtistProp {
+  artistId: string | null;
+  aritstName: string;
+  artistImage: string;
+}
+
 export const Search = () => {
   const [query, setQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<SpotifySearchType[]>([
@@ -35,7 +41,8 @@ export const Search = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<SpotifyAlbum | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] =
     useState<SpotifyPlaylistItem | null>(null);
-  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+  const [selectedArtist, setSelectedArtist] =
+    useState<selectedArtistProp | null>(null);
   const handleSearch = async () => {
     if (!query.trim() || selectedTypes.length === 0) return;
 
@@ -174,7 +181,15 @@ export const Search = () => {
                     //   rel="noopener noreferrer"
                     //   className="group p-4 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     // >
-                    <div onClick={() => setSelectedArtist(artist.id)}>
+                    <div
+                      onClick={() => {
+                        setSelectedArtist({
+                          artistId: artist.id,
+                          aritstName: artist.name,
+                          artistImage: artist.images?.[0]?.url || "",
+                        });
+                      }}
+                    >
                       <img
                         src={
                           artist.images?.[0]?.url || "/artist-placeholder.png"
@@ -293,7 +308,9 @@ export const Search = () => {
         onOpenChange={(open) => !open && setSelectedPlaylist(null)}
       />
       <ArtistTopTrackDialog
-        artistId={selectedArtist}
+        artistId={selectedArtist?.artistId}
+        artistName={selectedArtist?.aritstName}
+        artistImage={selectedArtist?.artistImage}
         IsOpen={!!selectedArtist}
         onOpenChange={(open) => !open && setSelectedArtist(null)}
       />

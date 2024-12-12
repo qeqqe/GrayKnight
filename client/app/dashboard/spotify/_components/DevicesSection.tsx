@@ -48,6 +48,12 @@ export const DevicesSection = () => {
 
       const data = await response.json();
       setDevices(data.devices);
+      const activeDevice = data.devices.find(
+        (device: SpotifyDevice) => device.is_active
+      );
+      if (activeDevice) {
+        localStorage.setItem("active_device_id", activeDevice.id);
+      }
     } catch (error) {
       console.error("Failed to fetch devices:", error);
     }
