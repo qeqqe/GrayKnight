@@ -1,4 +1,6 @@
-// hood spotify api wrapper functions
+// api wrapper
+
+import { headers } from "next/headers";
 
 export async function playSpotifyTrack(options: {
   uri?: string;
@@ -44,9 +46,8 @@ export async function playSpotifyTrack(options: {
   }
 }
 
-// slide this track into the queue like my...
+// queue
 export async function addToQueue(trackUri: string, deviceId?: string) {
-  // no token no dd party
   const token = localStorage.getItem("spotify_access_token");
   if (!token) throw new Error("No Spotify access token found");
 
@@ -71,9 +72,8 @@ export async function addToQueue(trackUri: string, deviceId?: string) {
   }
 }
 
-// basic playback control - does what it says
+// pause
 export const pauseSpotifyTrack = async (deviceId?: string) => {
-  // no token no diddy party
   const token = localStorage.getItem("spotify_access_token");
   const endpoint = deviceId
     ? `https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`
@@ -91,9 +91,8 @@ export const pauseSpotifyTrack = async (deviceId?: string) => {
   }
 };
 
-// skip it like the haters you don't wanna hear about
+// skip
 export const nextSpotifyTrack = async (deviceId?: string) => {
-  // no token no dd party
   const token = localStorage.getItem("spotify_access_token");
   const endpoint = deviceId
     ? `https://api.spotify.com/v1/me/player/next?device_id=${deviceId}`
@@ -110,8 +109,7 @@ export const nextSpotifyTrack = async (deviceId?: string) => {
     throw new Error("Failed to skip to next track");
   }
 };
-
-// when you accidentally skipped a banger
+// prev
 export const previousSpotifyTrack = async (deviceId?: string) => {
   const token = localStorage.getItem("spotify_access_token");
   const endpoint = deviceId
@@ -129,7 +127,7 @@ export const previousSpotifyTrack = async (deviceId?: string) => {
     throw new Error("Failed to go to previous track");
   }
 };
-
+// search
 export async function searchSpotify(
   query: string,
   types: string[],
@@ -174,3 +172,29 @@ export async function searchSpotify(
     throw error;
   }
 }
+
+// fetch artists top tracks
+
+export const fetchArtistTopTracks = async (artistId: string) => {
+  const token = localStorage.getItem("spotify_access_token");
+  if (!token) throw new Error("No Spotify access token found");
+  try {
+    const response = await fetch(
+      `https://api.spotify.com/v1/artists/${artistId}/top-tracks`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error.message || "Failed to search");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch artist top tracks:", error);
+    throw error;
+  }
+};

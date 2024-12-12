@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Heart, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { spotifyTrack } from "../types";
+import { QueueButton } from "./QueueButton";
 
 interface SavedTrackItem {
   added_at: string;
@@ -151,6 +152,9 @@ const SavedTrack = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-zinc-400">
+                      <div className="">
+                        <QueueButton trackId={item.track.id} />
+                      </div>
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />
                         {formatDuration(item.track.duration_ms)}

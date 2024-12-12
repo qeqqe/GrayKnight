@@ -23,6 +23,7 @@ import {
 import { searchSpotify, playSpotifyTrack, addToQueue } from "@/lib/spotify";
 import { AlbumDialog } from "./AlbumDialog";
 import { PlaylistDialog } from "./PlaylistDialog";
+import ArtistTopTrackDialog from "./ArtistTopTrackDialog";
 
 export const Search = () => {
   const [query, setQuery] = useState("");
@@ -34,7 +35,7 @@ export const Search = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<SpotifyAlbum | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] =
     useState<SpotifyPlaylistItem | null>(null);
-
+  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const handleSearch = async () => {
     if (!query.trim() || selectedTypes.length === 0) return;
 
@@ -42,6 +43,7 @@ export const Search = () => {
     try {
       const searchResults = await searchSpotify(query, selectedTypes);
       setResults(searchResults);
+      console.log("search result:", searchResults);
     } catch (error) {
       console.error("Search failed:", error);
     } finally {
@@ -165,13 +167,14 @@ export const Search = () => {
                 <h3 className="text-xl font-semibold">Artists</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {results.artists.items.map((artist) => (
-                    <a
-                      key={artist.id}
-                      href={artist.external_urls.spotify}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group p-4 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    >
+                    // <a
+                    //   key={artist.id}
+                    //   href={artist.external_urls.spotify}
+                    //   target="_blank"
+                    //   rel="noopener noreferrer"
+                    //   className="group p-4 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    // >
+                    <div onClick={() => setSelectedArtist(artist.id)}>
                       <img
                         src={
                           artist.images?.[0]?.url || "/artist-placeholder.png"
@@ -182,7 +185,8 @@ export const Search = () => {
                       <p className="font-medium text-center truncate">
                         {artist.name}
                       </p>
-                    </a>
+                    </div>
+                    // </a>
                   ))}
                 </div>
               </div>
@@ -287,6 +291,11 @@ export const Search = () => {
         playlist={selectedPlaylist}
         isOpen={!!selectedPlaylist}
         onOpenChange={(open) => !open && setSelectedPlaylist(null)}
+      />
+      <ArtistTopTrackDialog
+        artistId={selectedArtist}
+        IsOpen={!!selectedArtist}
+        onOpenChange={(open) => !open && setSelectedArtist(null)}
       />
     </div>
   );

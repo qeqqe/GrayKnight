@@ -15,11 +15,8 @@ import { playSpotifyTrack } from "@/lib/spotify";
 import { QueueButton } from "./QueueButton";
 import { Play } from "lucide-react";
 
-// this bad boy handles all the playlist vibes
-// shows tracks, lets you play them, and even queue them up
-
 interface PlaylistDialogProps {
-  playlist: SpotifyPlaylistItem | null; // Update this line
+  playlist: SpotifyPlaylistItem | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -29,16 +26,13 @@ export const PlaylistDialog = ({
   isOpen,
   onOpenChange,
 }: PlaylistDialogProps) => {
-  // State for infinite scroll implementation
   const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
-  // Reference for intersection observer
   const loadingRef = useRef<HTMLDivElement>(null);
 
-  // Fetch tracks with pagination support
   const fetchTracks = async (url: string) => {
     try {
       const token = localStorage.getItem("spotify_access_token");
@@ -61,7 +55,6 @@ export const PlaylistDialog = ({
     }
   };
 
-  // Infinite scroll implementation using Intersection Observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -80,7 +73,6 @@ export const PlaylistDialog = ({
     return () => observer.disconnect();
   }, [hasMore, loading, nextUrl]);
 
-  // Reset state when dialog closes
   useEffect(() => {
     const fetchTracks = async () => {
       if (!playlist?.id) return;
@@ -116,7 +108,6 @@ export const PlaylistDialog = ({
     fetchTracks();
   }, [playlist?.id, isOpen]);
 
-  // spin up a track in the context of its playlist
   const handlePlay = async (trackId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();

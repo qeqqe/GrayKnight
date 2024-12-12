@@ -16,7 +16,6 @@ interface QueueButtonProps {
   size?: "default" | "sm" | "lg" | "icon";
 }
 
-// the queue master - adds tracks to the lineup
 export function QueueButton({
   trackId,
   deviceId,
@@ -25,7 +24,6 @@ export function QueueButton({
 }: QueueButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  // yeet that track into the queue
   const handleAddToQueue = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
