@@ -5,7 +5,6 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
@@ -98,6 +97,36 @@ body {
 }
 
 .spotify-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+#tablist::-webkit-scrollbar {
+  width: 0;
+  background-color: transparent;
+}
+
+#tablist:hover::-webkit-scrollbar {
+  width: 2px;
+}
+
+#tablist::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+}
+
+#tablist::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+#tablist::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+#tablist {
+  scrollbar-width: none;
+}
+
+#tablist:hover {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }

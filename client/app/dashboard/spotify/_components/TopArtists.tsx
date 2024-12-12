@@ -128,14 +128,19 @@ const TopArtists = () => {
                     <AvatarFallback>{artist.name[0]}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <a
-                      href={artist.external_urls.spotify}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-lg font-semibold"
-                    >
-                      {artist.name}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={artist.external_urls.spotify}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-lg font-semibold hover:underline"
+                      >
+                        {artist.name}
+                      </a>
+                      <span className="text-xs text-muted-foreground">
+                        Popularity: {artist.popularity}%
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500">
                       {artist.genres?.slice(0, 3)?.join(", ") ||
                         "No genres available"}

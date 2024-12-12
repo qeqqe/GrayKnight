@@ -645,38 +645,40 @@ const SpotifyDashboard = () => {
         <>
           {renderUserProfile()}
 
-          <Tabs
-            defaultValue="overview"
-            className="space-y-6 gap-4 rounded-xl overflow-x-auto"
-          >
-            <TabsList className="w-full justify-start border-b rounded-xl px-[0.7rem] h-12">
+          <Tabs defaultValue="overview" className="space-y-6 gap-4 rounded-xl">
+            <TabsList
+              className="w-full justify-start overflow-x-auto overflow-y-hidden scroll-smooth scrollbar-hide border-b rounded-xl px-[0.7rem] sm:pt-[1.5rem] sm:pb-[1.5rem] md:pb-[1.5rem] h-12"
+              id="tablist"
+            >
               <TabsTrigger value="overview">
-                <PlayCircle className="w-4 h-4 mr-2" />
-                Overview
+                <PlayCircle className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">Overview</span>
               </TabsTrigger>
               <TabsTrigger value="playlists">
-                <ListMusic className="w-4 h-4 mr-2" />
-                Playlists
+                <ListMusic className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">Playlists</span>
               </TabsTrigger>
               <TabsTrigger value="recent">
-                <Clock className="w-4 h-4 mr-2" />
-                Recent
+                <Clock className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">Recent</span>
               </TabsTrigger>
               <TabsTrigger value="devices">
-                <Radio className="w-4 h-4 mr-2" />
-                Devices
+                <Radio className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">Devices</span>
               </TabsTrigger>
               <TabsTrigger value="search">
-                <SearchIcon className="w-4 h-4 mr-2" />
-                Search
+                <SearchIcon className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">Search</span>
               </TabsTrigger>
               <TabsTrigger value="savedTrack">
-                <Heart className="w-4 h-4 mr-2" />
-                Saved Tracks
+                <Heart className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">
+                  Saved Tracks
+                </span>
               </TabsTrigger>
               <TabsTrigger value="TopItems">
-                <AudioLines className="w-4 h-4 mr-2" />
-                Top Items
+                <AudioLines className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">Top Items</span>
               </TabsTrigger>
             </TabsList>
 

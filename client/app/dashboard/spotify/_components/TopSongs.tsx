@@ -163,14 +163,23 @@ const TopSongs = () => {
                       <AvatarFallback>{track.name[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <a
-                        href={track.external_urls.spotify}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-lg font-semibold hover:underline"
-                      >
-                        {track.name}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={track.external_urls.spotify}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-lg font-semibold hover:underline"
+                        >
+                          {track.name}
+                        </a>
+                        <span className="text-xs text-muted-foreground">
+                          Popularity: {track.popularity}% •{" "}
+                          {Math.floor(track.duration_ms / 60000)}:
+                          {Math.floor((track.duration_ms % 60000) / 1000)
+                            .toString()
+                            .padStart(2, "0")}
+                        </span>
+                      </div>
                       <p className="text-sm text-gray-500">
                         {track.artists.map((artist) => artist.name).join(", ")}
                       </p>

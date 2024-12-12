@@ -10,7 +10,7 @@ const TopItems = () => {
         defaultValue="artist"
         className="space-y-6 gap-4 rounded-xl overflow-x-auto"
       >
-        <TabsList className="w-[15vw] justify-start flex gap-4 border-b rounded-xl px-[0.7rem] h-12">
+        <TabsList className="w-fit justify-start flex gap-4 border-b rounded-xl px-[0.7rem] h-12">
           <TabsTrigger value="artist" className="flex items-center">
             <MicVocal className="w-4 h-4 mr-2" /> Artists
           </TabsTrigger>
