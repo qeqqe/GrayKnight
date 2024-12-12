@@ -198,3 +198,30 @@ export const fetchArtistTopTracks = async (artistId: string) => {
     throw error;
   }
 };
+
+// top items
+export const fetchTopItems = async (
+  type: "artists" | "tracks",
+  time: "short_term" | "medium_term" | "long_term"
+) => {
+  const token = localStorage.getItem("spotify_access_token");
+  if (!token) throw new Error("No Spotify access token found");
+  try {
+    const response = await fetch(
+      `https://api.spotify.com/v1/me/top/${type}?time_range=${time}&limit=50`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error.message || "Failed to fetch top items");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch top items:", error);
+    throw error;
+  }
+};
