@@ -1,13 +1,31 @@
 const mongoose = require("mongoose");
 
 const SpotifySchema = new mongoose.Schema({
-  user: {
+  app_user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
-  SpotifyId: {
+  spotify_id: {
     type: String,
-    unique: true,
     required: true,
   },
+  scrobbles: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+  recently_played: [
+    {
+      song: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Song",
+      },
+      played_at: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
 });
+
+module.exports = mongoose.model("Spotify", SpotifySchema);

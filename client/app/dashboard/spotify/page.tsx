@@ -26,7 +26,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Music2,
   Clock,
   PlayCircle,
   ListMusic,
@@ -37,22 +36,14 @@ import {
 } from "lucide-react";
 import { Search as SearchIcon } from "lucide-react";
 
-// Remove all local interface definitions and import them from types.ts
 import type {
   spotifyTrack,
   spotifyData,
   spotifyOtherData,
   SpotifyPlaylist,
   SpotifyPlaylistItem,
-  SpotifyImage,
-  SpotifyPlaylistTrack,
-  PlaylistResponse,
   SpotifyQueue,
-  RecentlyPlayedResponse,
-  SpotifyRecentlyPlayedResponse,
   RecentlyPlayedItem,
-  Artist,
-  AlbumImage,
 } from "./types";
 
 import {
@@ -60,7 +51,6 @@ import {
   PlaylistSection,
   RecentlyPlayed,
   QueueSection,
-  TrackCard,
   PlaylistDialog,
   DevicesSection,
   Search,
@@ -250,6 +240,12 @@ const SpotifyDashboard = () => {
     }
   }, [router]);
 
+  const SendTrackData = async (track: spotifyTrack) => {
+    const spotify_user_id = localStorage.getItem("spotify_user_id");
+    const token = localStorage.getItem("token");
+    const response = await fetch("http://localhost:3001/api/spotify/track");
+  };
+
   useEffect(() => {
     const fetchCurrentTrack = async () => {
       if (!checkTokenExpiration()) {
@@ -275,7 +271,6 @@ const SpotifyDashboard = () => {
         }
 
         const data = await response.json();
-        // console.log("Raw Spotify data:", data);
 
         if (data.item) {
           const trackData: spotifyTrack = {
@@ -289,11 +284,10 @@ const SpotifyDashboard = () => {
             popularity: data.item.popularity || 0,
             progress_ms: data.progress_ms || 0,
             is_playing: data.is_playing,
-            uri: data.item.uri, // Add this line
+            uri: data.item.uri,
             external_urls: data.item.external_urls,
           };
 
-          // console.log("Processed track data:", trackData);
           setCurrentTrack(trackData);
         }
       } catch (error) {

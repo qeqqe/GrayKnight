@@ -280,7 +280,7 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
         </div>
       </div>
 
-      {/* Track Info Dialog */}
+      {/* dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-2xl">
           <DialogHeader>
@@ -418,7 +418,6 @@ export const TrackCard = ({ track }: { track: spotifyTrack }) => {
                 </div>
               )}
 
-              {/* Actions */}
               <div className="flex gap-4">
                 <Button
                   onClick={() =>
