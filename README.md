@@ -128,7 +128,6 @@ LICENSE.md
    - Compare with friends
    - Collaborative playlists
 6. Improve data export options
-   - PDF reports
    - Data visualization exports
    - Raw data access
 
