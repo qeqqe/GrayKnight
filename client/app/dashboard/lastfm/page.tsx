@@ -186,19 +186,52 @@ const LastFmDashboard = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        const statusData = await makeAuthenticatedRequest(
-          "http://localhost:3001/api/lastfm/status"
+        // Get the token from localStorage
+        const token = localStorage.getItem("token");
+        if (!token) {
+          console.error("No auth token found");
+          return;
+        }
+
+        const response = await fetch(
+          "http://localhost:3001/api/lastfm/status",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
-        setIsConnected(statusData.connected);
-        if (statusData.connected) {
-          setLastfmUser(statusData.userInfo);
+
+        const data = await response.json();
+        console.log("Last.fm status:", data);
+
+        if (data.connected && data.userInfo) {
+          setIsConnected(true);
+          setLastfmUser(data.userInfo);
+          // Store the Last.fm session key if it's in URL params
+          const urlParams = new URLSearchParams(window.location.search);
+          const sessionKey = urlParams.get("sessionKey");
+          if (sessionKey) {
+            localStorage.setItem("lastfm_session_key", sessionKey);
+          }
         }
       } catch (error) {
-        console.error("📍 Init error:", error);
+        console.error("Failed to check Last.fm status:", error);
       }
     };
 
     init();
+
+    // Check URL parameters for Last.fm connection success
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("lastfm_connected") === "true") {
+      const sessionKey = urlParams.get("sessionKey");
+      const username = urlParams.get("username");
+      if (sessionKey && username) {
+        localStorage.setItem("lastfm_session_key", sessionKey);
+        setIsConnected(true);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -381,7 +414,9 @@ const LastFmDashboard = () => {
   };
 
   const renderContent = () => {
-    if (!isConnected || !localStorage.getItem("lastfm_session_key")) {
+    // Check both isConnected and session key
+    const sessionKey = localStorage.getItem("lastfm_session_key");
+    if (!isConnected || !sessionKey) {
       return (
         <Card className="border-dashed">
           <CardHeader className="text-center">

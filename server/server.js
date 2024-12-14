@@ -336,20 +336,43 @@ app.get("/api/lastfm/userinfo", async (req, res) => {
   }
 });
 
-app.get("/api/lastfm/topartists", async (req, res) => {
-  try {
-    console.log("🎸 Fetching top artists from Last.fm...");
-    const response = await fetch(
-      `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50`
-    );
-    const data = await response.json();
+app.get(
+  "/api/lastfm/topartists",
+  validateAuthHeader,
+  verifyToken,
+  async (req, res) => {
+    try {
+      console.log("🎸 Fetching top artists from Last.fm...");
+      const user = await User.findById(req.user.userId);
 
-    res.json(data.topartists.artist || []);
-  } catch (error) {
-    console.error("🎸 Error fetching top artists:", error);
-    res.status(500).json({ error: "Failed to fetch top artists" });
+      if (!user?.lastfmUsername) {
+        return res.status(404).json({ error: "User not connected to Last.fm" });
+      }
+
+      const response = await fetch(
+        `http://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${user.lastfmUsername}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=50`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Last.fm API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.topartists || !data.topartists.artist) {
+        console.error("🎸 Invalid response format:", data);
+        throw new Error("Invalid response format from Last.fm");
+      }
+
+      res.json(data.topartists.artist);
+    } catch (error) {
+      console.error("🎸 Error fetching top artists:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to fetch top artists", details: error.message });
+    }
   }
-});
+);
 
 app.get(
   "/api/lastfm/now-playing",
