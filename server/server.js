@@ -13,6 +13,7 @@ const lastFmService = require("./services/lastfm");
 const passport = require("passport");
 const configurePassport = require("./services/spotify");
 const mongoose = require("mongoose");
+const spotifyDataRoutes = require("./routes/SpotifyData");
 dotenv.config();
 
 console.log("JWT_SECRET length:", process.env.JWT_SECRET?.length);
@@ -870,21 +871,22 @@ app.get(
   }
 );
 
-app.get("/refresh_token", async (req, res) => {
+// Replace the existing refresh_token endpoint with this:
+app.post("/auth/refresh", async (req, res) => {
   try {
-    const refreshToken = req.query.refresh_token;
+    const { refresh_token } = req.body;
     console.log("Refresh token request received:", {
-      hasToken: !!refreshToken,
-      tokenLength: refreshToken?.length,
+      hasToken: !!refresh_token,
+      tokenLength: refresh_token?.length,
     });
 
-    if (!refreshToken) {
+    if (!refresh_token) {
       return res.status(400).json({ error: "Refresh token is required" });
     }
 
     const params = new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: refreshToken,
+      refresh_token: refresh_token,
     });
 
     const spotifyTokenUrl = "https://accounts.spotify.com/api/token";
@@ -903,9 +905,9 @@ app.get("/refresh_token", async (req, res) => {
       body: params,
     });
 
-    console.log("Spotify response status:", response.status);
+    console.log("Spotify refresh response status:", response.status);
     const data = await response.json();
-    console.log("Spotify response data:", {
+    console.log("Spotify refresh response data:", {
       hasAccessToken: !!data.access_token,
       hasRefreshToken: !!data.refresh_token,
       expiresIn: data.expires_in,
@@ -921,44 +923,16 @@ app.get("/refresh_token", async (req, res) => {
       throw new Error("No access token received from Spotify");
     }
 
-    // Update user if authenticated
-    if (req.user?.userId) {
-      try {
-        const updatedUser = await User.findByIdAndUpdate(
-          req.user.userId,
-          {
-            spotifyAccessToken: data.access_token,
-            spotifyTokenExpiry: new Date(Date.now() + data.expires_in * 1000),
-            // Update refresh token if Spotify provided a new one
-            ...(data.refresh_token && {
-              spotifyRefreshToken: data.refresh_token,
-            }),
-          },
-          { new: true }
-        );
-        console.log("User token updated:", {
-          userId: req.user.userId,
-          success: !!updatedUser,
-        });
-      } catch (dbError) {
-        console.error("Failed to update user tokens:", dbError);
-      }
-    }
-
     res.json({
       access_token: data.access_token,
       expires_in: data.expires_in,
       refresh_token: data.refresh_token,
     });
   } catch (error) {
-    console.error("Token refresh error:", {
-      message: error.message,
-      stack: error.stack,
-    });
+    console.error("Token refresh error:", error);
     res.status(500).json({
       error: "Failed to refresh token",
-      message:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
+      message: error.message,
     });
   }
 });
@@ -979,6 +953,22 @@ app.get(
     }
   }
 );
+
+app.post(
+  "/api/save-track",
+  validateAuthHeader,
+  verifyToken,
+  (req, res, next) => {
+    console.log("🎼 Save track middleware:", {
+      hasAuthHeader: !!req.headers.authorization,
+      hasUserInToken: !!req.user,
+      userId: req.user?.userId,
+    });
+    next();
+  },
+  spotifyDataRoutes.saveListeningData
+);
+
 app.listen(port, () => {
   console.log(`Server is running on port: ${port}`);
 });

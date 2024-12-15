@@ -18,6 +18,12 @@ const userSchema = new mongoose.Schema({
     default: false,
   },
   createdAt: { type: Date, default: Date.now },
+  songs: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Song",
+    },
+  ],
 });
 
 module.exports = mongoose.model("User", userSchema);

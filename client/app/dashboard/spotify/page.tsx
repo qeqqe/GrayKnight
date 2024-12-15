@@ -89,7 +89,10 @@ const SpotifyDashboard = () => {
       }
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      console.log("Using API URL:", apiUrl);
+      console.log("Refreshing token with:", {
+        url: `${apiUrl}/auth/refresh`,
+        refreshTokenLength: refreshToken.length,
+      });
 
       const response = await fetch(`${apiUrl}/auth/refresh`, {
         method: "POST",
@@ -101,22 +104,27 @@ const SpotifyDashboard = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, ${errorText}`);
+        console.error("Token refresh failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        throw new Error(
+          `Token refresh failed: ${response.status} ${errorText}`
+        );
       }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error("Response:", await response.text());
-        throw new Error("Invalid response format from server");
-      }
+      const data = await response.json();
+      console.log("Token refresh successful:", {
+        hasAccessToken: !!data.access_token,
+        hasRefreshToken: !!data.refresh_token,
+        expiresIn: data.expires_in,
+      });
 
       if (!data.access_token) {
         throw new Error("No access token in response");
       }
 
-      // Store new tokens
       localStorage.setItem("spotify_access_token", data.access_token);
       localStorage.setItem(
         "spotify_token_expiry",
@@ -129,17 +137,17 @@ const SpotifyDashboard = () => {
 
       return true;
     } catch (error) {
-      console.error("Failed to refresh Spotify token:", {
+      console.error("Token refresh failed:", {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
 
+      // Clear tokens if the refresh token is invalid
       if (
         error instanceof Error &&
         (error.message.includes("invalid_grant") ||
           error.message.includes("Invalid refresh token") ||
-          error.message.includes("401") ||
-          error.message.includes("400"))
+          error.message.includes("401"))
       ) {
         localStorage.removeItem("spotify_access_token");
         localStorage.removeItem("spotify_refresh_token");
@@ -287,8 +295,43 @@ const SpotifyDashboard = () => {
             uri: data.item.uri,
             external_urls: data.item.external_urls,
           };
-
           setCurrentTrack(trackData);
+
+          // Save track data
+          try {
+            const user_token = localStorage.getItem("token");
+
+            console.log("🎵 Attempting to save track:", {
+              hasUserToken: !!user_token,
+              trackData: {
+                id: trackData.id,
+                name: trackData.name,
+                artist: trackData.artists[0].name,
+              },
+            });
+
+            const response = await fetch(
+              `${
+                process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+              }/api/save-track`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${user_token}`,
+                },
+                body: JSON.stringify({
+                  track: trackData,
+                }),
+              }
+            );
+
+            console.log("🎵 Save track response status:", response.status);
+            const result = await response.json();
+            console.log("🎵 Track save result:", result);
+          } catch (error) {
+            console.error("Failed to save track data:", error);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch current track:", error);
