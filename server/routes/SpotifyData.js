@@ -20,7 +20,6 @@ const saveListeningData = async (req, res) => {
     const halfDuration = track.duration_ms / 2;
     const minRequiredProgress = Math.min(halfDuration, 240000); // 4 minutes in ms
 
-    // Validate scrobble conditions
     if (progress < minRequiredProgress) {
       return res.status(400).json({
         error: "Track hasn't been played long enough to scrobble",
@@ -51,7 +50,6 @@ const saveListeningData = async (req, res) => {
         ],
       });
     } else {
-      // Only increment play count for new sessions or completed tracks
       if (isNewSession || progress >= halfDuration) {
         song.play_count += 1;
         song.scrobble_history.push({

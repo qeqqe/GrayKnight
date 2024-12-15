@@ -33,6 +33,7 @@ import {
   UserPlus,
   Heart,
   AudioLines,
+  SquareLibrary,
 } from "lucide-react";
 import { Search as SearchIcon } from "lucide-react";
 
@@ -58,6 +59,7 @@ import {
 import FollowedArtists from "./_components/FollowedArtists";
 import SavedTrack from "./_components/SavedTrack";
 import TopItems from "./_components/TopItems";
+import MoreData from "./_components/MoreData";
 
 interface TrackProgress {
   timestamp: number;
@@ -798,6 +800,10 @@ const SpotifyDashboard = () => {
                 <AudioLines className="w-4 h-4" />
                 <span className="hidden sm:inline-block ml-2">Top Items</span>
               </TabsTrigger>
+              <TabsTrigger value="MoreData">
+                <SquareLibrary className="w-4 h-4" />
+                <span className="hidden sm:inline-block ml-2">More Data</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -860,6 +866,9 @@ const SpotifyDashboard = () => {
             </TabsContent>
             <TabsContent value="TopItems">
               <TopItems />
+            </TabsContent>
+            <TabsContent value="MoreData">
+              <MoreData />
             </TabsContent>
           </Tabs>
         </>
