@@ -33,6 +33,22 @@ const songSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  scrobble_history: [
+    {
+      timestamp: {
+        type: Date,
+        required: true,
+      },
+      progress_ms: {
+        type: Number,
+        required: true,
+      },
+      completed: {
+        type: Boolean,
+        default: true,
+      },
+    },
+  ],
 });
 
 module.exports = mongoose.model("Song", songSchema);

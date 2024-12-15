@@ -875,52 +875,60 @@ app.get(
 app.post("/auth/refresh", async (req, res) => {
   try {
     const { refresh_token } = req.body;
-    console.log("Refresh token request received:", {
-      hasToken: !!refresh_token,
-      tokenLength: refresh_token?.length,
+    console.log("Spotify token refresh request:", {
+      hasRefreshToken: !!refresh_token,
+      clientId: !!process.env.SPOTIFY_CLIENT_ID,
+      clientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
     });
 
     if (!refresh_token) {
       return res.status(400).json({ error: "Refresh token is required" });
     }
 
-    const params = new URLSearchParams({
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+      console.error("Missing Spotify credentials in environment");
+      return res.status(500).json({ error: "Server configuration error" });
+    }
+
+    const spotifyTokenUrl = "https://accounts.spotify.com/api/token";
+    const authString = Buffer.from(
+      `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+    ).toString("base64");
+
+    const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: refresh_token,
     });
 
-    const spotifyTokenUrl = "https://accounts.spotify.com/api/token";
-    console.log("Making request to Spotify:", spotifyTokenUrl);
-
-    const authString = Buffer.from(
-      process.env.SPOTIFY_CLIENT_ID + ":" + process.env.SPOTIFY_CLIENT_SECRET
-    ).toString("base64");
+    console.log("Making Spotify token refresh request:", {
+      url: spotifyTokenUrl,
+      hasAuthHeader: !!authString,
+      body: body.toString(),
+    });
 
     const response = await fetch(spotifyTokenUrl, {
       method: "POST",
       headers: {
-        Authorization: "Basic " + authString,
+        Authorization: `Basic ${authString}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: params,
+      body: body,
     });
 
-    console.log("Spotify refresh response status:", response.status);
     const data = await response.json();
-    console.log("Spotify refresh response data:", {
+
+    console.log("Spotify token refresh response:", {
+      status: response.status,
       hasAccessToken: !!data.access_token,
       hasRefreshToken: !!data.refresh_token,
-      expiresIn: data.expires_in,
       error: data.error,
       errorDescription: data.error_description,
     });
 
     if (!response.ok) {
-      throw new Error(data.error_description || "Failed to refresh token");
-    }
-
-    if (!data.access_token) {
-      throw new Error("No access token received from Spotify");
+      throw new Error(
+        data.error_description || data.error || "Failed to refresh token"
+      );
     }
 
     res.json({
@@ -929,11 +937,13 @@ app.post("/auth/refresh", async (req, res) => {
       refresh_token: data.refresh_token,
     });
   } catch (error) {
-    console.error("Token refresh error:", error);
-    res.status(500).json({
-      error: "Failed to refresh token",
+    console.error("Spotify token refresh error:", {
       message: error.message,
+      stack: error.stack,
     });
+    res
+      .status(500)
+      .json({ error: "Failed to refresh token", message: error.message });
   }
 });
 

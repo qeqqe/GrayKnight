@@ -59,6 +59,12 @@ import FollowedArtists from "./_components/FollowedArtists";
 import SavedTrack from "./_components/SavedTrack";
 import TopItems from "./_components/TopItems";
 
+interface TrackProgress {
+  timestamp: number;
+  progress: number;
+  completed: boolean; // Track whether this play has been counted
+}
+
 const SpotifyDashboard = () => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -77,40 +83,45 @@ const SpotifyDashboard = () => {
   );
   const [showFollowingDialog, setShowFollowingDialog] = useState(false);
   const [totalFollowing, setTotalFollowing] = useState(0);
+  const [lastSavedTrack, setLastSavedTrack] = useState<{
+    id: string;
+    timestamp: number;
+  } | null>(null);
+
+  const [trackProgress, setTrackProgress] = useState<
+    Map<string, TrackProgress>
+  >(new Map());
+  const MIN_SCROBBLE_TIME = 240000; // 4 minutes
+  const SAME_TRACK_THRESHOLD = 1800000; // 30 minutes
 
   const refreshSpotifyToken = async () => {
     try {
-      console.log("Starting token refresh process...");
+      console.log("Starting Spotify token refresh...");
       const refreshToken = localStorage.getItem("spotify_refresh_token");
 
       if (!refreshToken) {
-        console.error("No refresh token found in localStorage");
-        throw new Error("No refresh token available");
+        throw new Error("No refresh token found");
       }
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      console.log("Refreshing token with:", {
-        url: `${apiUrl}/auth/refresh`,
-        refreshTokenLength: refreshToken.length,
-      });
+      console.log("Making refresh request to:", `${apiUrl}/auth/refresh`);
 
       const response = await fetch(`${apiUrl}/auth/refresh`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        body: JSON.stringify({
+          refresh_token: refreshToken,
+        }),
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Token refresh failed:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
-        });
+        const errorData = await response.json();
         throw new Error(
-          `Token refresh failed: ${response.status} ${errorText}`
+          `Token refresh failed: ${response.status} ${JSON.stringify(
+            errorData
+          )}`
         );
       }
 
@@ -121,10 +132,7 @@ const SpotifyDashboard = () => {
         expiresIn: data.expires_in,
       });
 
-      if (!data.access_token) {
-        throw new Error("No access token in response");
-      }
-
+      // Update stored tokens
       localStorage.setItem("spotify_access_token", data.access_token);
       localStorage.setItem(
         "spotify_token_expiry",
@@ -137,17 +145,12 @@ const SpotifyDashboard = () => {
 
       return true;
     } catch (error) {
-      console.error("Token refresh failed:", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-
-      // Clear tokens if the refresh token is invalid
+      console.error("Token refresh failed:", error);
+      // Only clear tokens on specific errors
       if (
         error instanceof Error &&
         (error.message.includes("invalid_grant") ||
-          error.message.includes("Invalid refresh token") ||
-          error.message.includes("401"))
+          error.message.includes("Invalid refresh token"))
       ) {
         localStorage.removeItem("spotify_access_token");
         localStorage.removeItem("spotify_refresh_token");
@@ -158,7 +161,6 @@ const SpotifyDashboard = () => {
         setOtherUserData(null);
         setCurrentTrack(null);
       }
-
       return false;
     }
   };
@@ -251,7 +253,9 @@ const SpotifyDashboard = () => {
   const SendTrackData = async (track: spotifyTrack) => {
     const spotify_user_id = localStorage.getItem("spotify_user_id");
     const token = localStorage.getItem("token");
-    const response = await fetch("http://localhost:3001/api/spotify/track");
+    const response = await fetch(
+      `${process.env.BACKEND_URL || "http://localhost:3000"}/api/spotify/track`
+    );
   };
 
   useEffect(() => {
@@ -297,40 +301,117 @@ const SpotifyDashboard = () => {
           };
           setCurrentTrack(trackData);
 
-          // Save track data
-          try {
-            const user_token = localStorage.getItem("token");
+          const currentTime = Date.now();
+          const lastProgress = trackProgress.get(trackData.id);
+          const halfDuration = trackData.duration_ms / 2;
+          const minRequiredProgress = Math.min(halfDuration, MIN_SCROBBLE_TIME);
 
-            console.log("🎵 Attempting to save track:", {
-              hasUserToken: !!user_token,
-              trackData: {
-                id: trackData.id,
+          const shouldScrobble = () => {
+            // If no previous progress exists
+            if (!lastProgress) {
+              return trackData.progress_ms >= minRequiredProgress;
+            }
+
+            // If this is a new session (30+ minutes since last play)
+            if (currentTime - lastProgress.timestamp > SAME_TRACK_THRESHOLD) {
+              return trackData.progress_ms >= minRequiredProgress;
+            }
+
+            // If track was completed and started over
+            if (
+              lastProgress.completed &&
+              trackData.progress_ms < lastProgress.progress
+            ) {
+              return trackData.progress_ms >= minRequiredProgress;
+            }
+
+            // If track hasn't been marked as completed yet but has reached threshold
+            if (
+              !lastProgress.completed &&
+              trackData.progress_ms >= minRequiredProgress
+            ) {
+              return true;
+            }
+
+            return false;
+          };
+
+          if (shouldScrobble()) {
+            try {
+              const user_token = localStorage.getItem("token");
+              console.log("🎵 Attempting to scrobble track:", {
                 name: trackData.name,
-                artist: trackData.artists[0].name,
-              },
+                progress: trackData.progress_ms,
+                duration: trackData.duration_ms,
+                lastProgress: lastProgress
+                  ? {
+                      progress: lastProgress.progress,
+                      completed: lastProgress.completed,
+                      timeSince: currentTime - lastProgress.timestamp,
+                    }
+                  : "none",
+              });
+
+              const response = await fetch(
+                `${
+                  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+                }/api/save-track`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${user_token}`,
+                  },
+                  body: JSON.stringify({
+                    track: trackData,
+                    timestamp: currentTime,
+                    progress: trackData.progress_ms,
+                    isNewSession:
+                      !lastProgress ||
+                      currentTime - lastProgress.timestamp >
+                        SAME_TRACK_THRESHOLD,
+                  }),
+                }
+              );
+
+              if (response.ok) {
+                setTrackProgress((prev) =>
+                  new Map(prev).set(trackData.id, {
+                    timestamp: currentTime,
+                    progress: trackData.progress_ms,
+                    completed: true,
+                  })
+                );
+              }
+            } catch (error) {
+              console.error("Failed to scrobble track:", error);
+            }
+          } else {
+            // Update progress without marking as completed
+            setTrackProgress((prev) => {
+              const current = prev.get(trackData.id);
+              if (!current || trackData.progress_ms > current.progress) {
+                return new Map(prev).set(trackData.id, {
+                  timestamp: currentTime,
+                  progress: trackData.progress_ms,
+                  completed: current?.completed || false,
+                });
+              }
+              return prev;
             });
 
-            const response = await fetch(
-              `${
-                process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-              }/api/save-track`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${user_token}`,
-                },
-                body: JSON.stringify({
-                  track: trackData,
-                }),
-              }
-            );
-
-            console.log("🎵 Save track response status:", response.status);
-            const result = await response.json();
-            console.log("🎵 Track save result:", result);
-          } catch (error) {
-            console.error("Failed to save track data:", error);
+            console.log("🎵 Updating progress without scrobble:", {
+              name: trackData.name,
+              progress: trackData.progress_ms,
+              required: minRequiredProgress,
+              lastProgress: lastProgress
+                ? {
+                    progress: lastProgress.progress,
+                    completed: lastProgress.completed,
+                    timeSince: currentTime - lastProgress.timestamp,
+                  }
+                : "none",
+            });
           }
         }
       } catch (error) {
@@ -349,7 +430,7 @@ const SpotifyDashboard = () => {
     }, 10 * 1000);
 
     return () => clearInterval(interval);
-  }, [isConnected]);
+  }, [isConnected, lastSavedTrack]);
 
   useEffect(() => {
     if (!currentTrack?.is_playing) return;
