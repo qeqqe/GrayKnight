@@ -104,5 +104,5 @@ Note: Development is now primarily focused on Spotify integration due to its mor
 ![Screenshot 2024-12-16 085359](https://github.com/user-attachments/assets/7e18c1ec-c321-48ff-a9e0-e744f8428c80)
 ![Screenshot 2024-12-16 085421](https://github.com/user-attachments/assets/d7e5cf4f-7291-44a2-9908-570d0b227f44)
 ![Screenshot 2024-12-16 085448](https://github.com/user-attachments/assets/c4ad7cd1-b3b1-4b93-a61d-f34f7fca46b8)
-![Screenshot 2024-12-16 090040](https://github.com/user-attachments/assets/11000f73-993d-445d-95e6-dd9d2d01209c)
+![Screenshot 2024-12-16 090201](https://github.com/user-attachments/assets/314c1de5-28db-4cb4-a82c-d347be8190ed)
 
