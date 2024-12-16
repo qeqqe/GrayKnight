@@ -2,6 +2,8 @@
 
 A comprehensive music analytics dashboard that integrates with Spotify to provide detailed insights into your listening habits through interactive visualizations.
 
+![Screenshot 2024-12-16 085231](https://github.com/user-attachments/assets/0a6d5d19-aefa-4456-b7a7-3e438f7cbcef)
+
 ## Features
 
 - 🎵 Real-time Spotify integration
@@ -30,6 +32,9 @@ A comprehensive music analytics dashboard that integrates with Spotify to provid
 LICENSE.md
 
 ## Current Progress
+![Screenshot 2024-12-16 085312](https://github.com/user-attachments/assets/6c813312-6d79-4301-bca8-875dd5705bc8)
+![Screenshot 2024-12-16 085359](https://github.com/user-attachments/assets/7e18c1ec-c321-48ff-a9e0-e744f8428c80)
+![Screenshot 2024-12-16 085421](https://github.com/user-attachments/assets/d7e5cf4f-7291-44a2-9908-570d0b227f44)
 
 ### Spotify Integration (Primary Focus)
 
@@ -96,13 +101,7 @@ LICENSE.md
    - Data visualization exports
    - Raw data access
 
-Note: Development is now primarily focused on Spotify integration due to its more comprehensive API capabilities.
-
-
-![Screenshot 2024-12-16 085231](https://github.com/user-attachments/assets/0a6d5d19-aefa-4456-b7a7-3e438f7cbcef)
-![Screenshot 2024-12-16 085312](https://github.com/user-attachments/assets/6c813312-6d79-4301-bca8-875dd5705bc8)
-![Screenshot 2024-12-16 085359](https://github.com/user-attachments/assets/7e18c1ec-c321-48ff-a9e0-e744f8428c80)
-![Screenshot 2024-12-16 085421](https://github.com/user-attachments/assets/d7e5cf4f-7291-44a2-9908-570d0b227f44)
-![Screenshot 2024-12-16 085448](https://github.com/user-attachments/assets/c4ad7cd1-b3b1-4b93-a61d-f34f7fca46b8)
 ![Screenshot 2024-12-16 090201](https://github.com/user-attachments/assets/314c1de5-28db-4cb4-a82c-d347be8190ed)
+
+Note: Development is now primarily focused on Spotify integration due to its more comprehensive API capabilities.
 
