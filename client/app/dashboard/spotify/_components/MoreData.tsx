@@ -1,41 +1,20 @@
 import React, { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Music2, Clock, CircleDot, TrendingUp } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import {
-  CircleDot,
-  Clock,
-  Disc,
-  Flame,
-  Heart,
-  ListMusic,
-  Music2,
-  Radio,
-  Star,
-  TrendingUp,
-} from "lucide-react";
-
-interface ListeningStats {
-  totalTracks: number;
-  totalMinutes: number;
-  uniqueArtists: number;
-  repeatRate: number;
-  genres: { name: string; percentage: number }[];
-  timeDistribution: { [key: string]: number };
-  weeklyActivity: number[];
-  insights: {
-    mostActiveTime: string;
-    favoriteGenre: string;
-    dailyAverage: string;
-  };
-}
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
+import { SpotifyTrack, ListeningStats } from "./types";
 
 const MoreData = () => {
   const [stats, setStats] = useState<ListeningStats | null>(null);
@@ -46,16 +25,28 @@ const MoreData = () => {
       try {
         const token = localStorage.getItem("spotify_access_token");
 
-        // Fetch recently played tracks for time distribution
-        const recentlyPlayedRes = await fetch(
-          "https://api.spotify.com/v1/me/player/recently-played?limit=50",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        const recentlyPlayed = await recentlyPlayedRes.json();
+        let allRecentTracks: SpotifyTrack[] = [];
+        const requestsNeeded = 6; // 6 * 50 = 300 tracks
 
-        // Fetch top tracks
+        for (let i = 0; i < requestsNeeded; i++) {
+          const res = await fetch(
+            `https://api.spotify.com/v1/me/player/recently-played?limit=50${
+              i > 0
+                ? `&before=${
+                    allRecentTracks[allRecentTracks.length - 1].played_at
+                  }`
+                : ""
+            }`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          const data = await res.json();
+          if (!data.items?.length) break;
+          allRecentTracks = [...allRecentTracks, ...data.items];
+        }
+
+        // Continue with other API calls
         const topTracksRes = await fetch(
           "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=short_term",
           {
@@ -64,7 +55,6 @@ const MoreData = () => {
         );
         const topTracks = await topTracksRes.json();
 
-        // Fetch top artists
         const topArtistsRes = await fetch(
           "https://api.spotify.com/v1/me/top/artists?limit=50&time_range=short_term",
           {
@@ -73,20 +63,17 @@ const MoreData = () => {
         );
         const topArtists = await topArtistsRes.json();
 
-        // Process the data
-        const timeDistribution = calculateTimeDistribution(
-          recentlyPlayed.items
-        );
+        const timeDistribution = calculateTimeDistribution(allRecentTracks);
         const genres = extractTopGenres(topArtists.items);
-        const weeklyActivity = calculateWeeklyActivity(recentlyPlayed.items);
+        const weeklyActivity = calculateWeeklyActivity(allRecentTracks);
         const uniqueArtistsCount = new Set(
           topTracks.items.map((t: any) => t.artists[0].id)
         ).size;
-        const repeatRate = calculateRepeatRate(recentlyPlayed.items);
+        const repeatRate = calculateRepeatRate(allRecentTracks);
 
         setStats({
           totalTracks: topTracks.total || 0,
-          totalMinutes: calculateTotalMinutes(recentlyPlayed.items),
+          totalMinutes: calculateTotalMinutes(allRecentTracks),
           uniqueArtists: uniqueArtistsCount,
           repeatRate,
           genres,
@@ -95,7 +82,7 @@ const MoreData = () => {
           insights: {
             mostActiveTime: getMostActiveTime(timeDistribution),
             favoriteGenre: genres[0]?.name || "N/A",
-            dailyAverage: calculateDailyAverage(recentlyPlayed.items),
+            dailyAverage: calculateDailyAverage(allRecentTracks),
           },
         });
       } catch (error) {
@@ -108,13 +95,19 @@ const MoreData = () => {
     fetchListeningStats();
   }, []);
 
-  if (loading) {
-    return <div>Loading stats...</div>;
-  }
+  const formatTimeDistributionForPieChart = (distribution: {
+    [key: string]: number;
+  }) => {
+    return Object.entries(distribution).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value: value,
+    }));
+  };
 
-  if (!stats) {
-    return <div>No stats available</div>;
-  }
+  if (loading) return <div>Loading stats...</div>;
+  if (!stats) return <div>No stats available</div>;
+
+  const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#6366f1"];
 
   return (
     <div className="space-y-6">
@@ -142,40 +135,107 @@ const MoreData = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Genre Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Radio className="w-5 h-5" />
-              Genre Distribution
-            </CardTitle>
+            <CardTitle>Genre Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {stats.genres.map((genre) => (
-                <div key={genre.name}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">{genre.name}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {genre.percentage}%
-                    </span>
-                  </div>
-                  <Progress value={genre.percentage} />
-                </div>
-              ))}
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={stats.genres}
+                  margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                >
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={100} />
+                  <Tooltip />
+                  <Bar
+                    dataKey="percentage"
+                    fill="#22c55e"
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        {/* Rest of the cards with real data... */}
-        {/* ...existing card components using stats data... */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Listening Time Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={formatTimeDistributionForPieChart(
+                      stats.timeDistribution
+                    )}
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                    nameKey="name"
+                    label
+                  >
+                    {formatTimeDistributionForPieChart(
+                      stats.timeDistribution
+                    ).map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `${value}%`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Weekly Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={stats.weeklyActivity.map((value, index) => ({
+                    day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
+                      index
+                    ],
+                    value,
+                  }))}
+                  margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                >
+                  <XAxis dataKey="day" />
+                  <YAxis domain={[0, "auto"]} />{" "}
+                  {/* This ensures Y axis starts at 0 and scales automatically */}
+                  <Tooltip
+                    formatter={(value) => [`${value} tracks`, "Tracks Played"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#22c55e"
+                    fill="#22c55e"
+                    fillOpacity={0.3}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 };
 
-// Helper functions to process the data
-const calculateTimeDistribution = (tracks: any[]) => {
+const calculateTimeDistribution = (tracks: SpotifyTrack[]) => {
   const distribution: { [key: string]: number } = {
     morning: 0,
     afternoon: 0,
@@ -216,18 +276,16 @@ const extractTopGenres = (artists: any[]) => {
     }));
 };
 
-const calculateWeeklyActivity = (tracks: any[]) => {
+const calculateWeeklyActivity = (tracks: SpotifyTrack[]) => {
   const weekDays = new Array(7).fill(0);
   tracks.forEach((track) => {
     const day = new Date(track.played_at).getDay();
     weekDays[day]++;
   });
-
-  const max = Math.max(...weekDays);
-  return weekDays.map((count) => Math.round((count / max) * 100));
+  return weekDays; // Return actual counts instead of percentages
 };
 
-const calculateRepeatRate = (tracks: any[]) => {
+const calculateRepeatRate = (tracks: SpotifyTrack[]) => {
   const trackIds = tracks.map((t) => t.track.id);
   const uniqueTracks = new Set(trackIds);
   return Math.round(
@@ -235,7 +293,7 @@ const calculateRepeatRate = (tracks: any[]) => {
   );
 };
 
-const calculateTotalMinutes = (tracks: any[]) => {
+const calculateTotalMinutes = (tracks: SpotifyTrack[]) => {
   return tracks.reduce(
     (total, track) => total + track.track.duration_ms / 60000,
     0
@@ -246,7 +304,7 @@ const getMostActiveTime = (distribution: { [key: string]: number }) => {
   return Object.entries(distribution).sort(([, a], [, b]) => b - a)[0][0];
 };
 
-const calculateDailyAverage = (tracks: any[]) => {
+const calculateDailyAverage = (tracks: SpotifyTrack[]) => {
   const totalHours = tracks.reduce(
     (total, track) => total + track.track.duration_ms / (1000 * 60 * 60),
     0
