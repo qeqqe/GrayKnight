@@ -26,7 +26,7 @@ const MoreData = () => {
         const token = localStorage.getItem("spotify_access_token");
 
         let allRecentTracks: SpotifyTrack[] = [];
-        const requestsNeeded = 6; // 6 * 50 = 300 tracks
+        const requestsNeeded = 6;
 
         for (let i = 0; i < requestsNeeded; i++) {
           const res = await fetch(
@@ -46,7 +46,6 @@ const MoreData = () => {
           allRecentTracks = [...allRecentTracks, ...data.items];
         }
 
-        // Continue with other API calls
         const topTracksRes = await fetch(
           "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=short_term",
           {
@@ -109,6 +108,16 @@ const MoreData = () => {
 
   const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#6366f1"];
 
+  const customGradientId = "customGradient";
+  const customGradient = (
+    <defs>
+      <linearGradient id={customGradientId} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
+        <stop offset="95%" stopColor="#22c55e" stopOpacity={0.2} />
+      </linearGradient>
+    </defs>
+  );
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -135,68 +144,7 @@ const MoreData = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Genre Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  layout="vertical"
-                  data={stats.genres}
-                  margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                >
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={100} />
-                  <Tooltip />
-                  <Bar
-                    dataKey="percentage"
-                    fill="#22c55e"
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Listening Time Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={formatTimeDistributionForPieChart(
-                      stats.timeDistribution
-                    )}
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    nameKey="name"
-                    label
-                  >
-                    {formatTimeDistributionForPieChart(
-                      stats.timeDistribution
-                    ).map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${value}%`} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
+        <Card className="hover:shadow-lg transition-shadow duration-200">
           <CardHeader>
             <CardTitle>Weekly Activity</CardTitle>
           </CardHeader>
@@ -212,20 +160,154 @@ const MoreData = () => {
                   }))}
                   margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                 >
-                  <XAxis dataKey="day" />
-                  <YAxis domain={[0, "auto"]} />{" "}
-                  {/* This ensures Y axis starts at 0 and scales automatically */}
+                  {customGradient}
+                  <XAxis
+                    dataKey="day"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#888888" }}
+                  />
+                  <YAxis
+                    domain={[0, "auto"]}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#888888" }}
+                  />
                   <Tooltip
+                    contentStyle={{
+                      background: "rgba(0, 0, 0, 0.8)",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "12px",
+                    }}
                     formatter={(value) => [`${value} tracks`, "Tracks Played"]}
                   />
                   <Area
                     type="monotone"
                     dataKey="value"
                     stroke="#22c55e"
-                    fill="#22c55e"
-                    fillOpacity={0.3}
+                    fill={`url(#${customGradientId})`}
+                    strokeWidth={2}
+                    animationDuration={1500}
                   />
                 </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-lg transition-shadow duration-200">
+          <CardHeader>
+            <CardTitle>Genre Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={stats.genres}
+                  margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                >
+                  {customGradient}
+                  <XAxis
+                    type="number"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#888888" }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={100}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#888888" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(0, 0, 0, 0.8)",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "12px",
+                    }}
+                    cursor={{ fill: "rgba(255, 255, 255, 0.1)" }}
+                  />
+                  <Bar
+                    dataKey="percentage"
+                    fill={`url(#${customGradientId})`}
+                    radius={[0, 4, 4, 0]}
+                    animationDuration={1500}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow duration-200">
+          <CardHeader>
+            <CardTitle>Listening Time Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={formatTimeDistributionForPieChart(
+                      stats.timeDistribution
+                    )}
+                    innerRadius={70}
+                    outerRadius={90}
+                    paddingAngle={8}
+                    dataKey="value"
+                    nameKey="name"
+                    label={({
+                      cx,
+                      cy,
+                      midAngle,
+                      innerRadius,
+                      outerRadius,
+                      value,
+                      name,
+                    }) => {
+                      const RADIAN = Math.PI / 180;
+                      const radius =
+                        25 + innerRadius + (outerRadius - innerRadius);
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          textAnchor={x > cx ? "start" : "end"}
+                          dominantBaseline="central"
+                          fill="#888888"
+                          fontSize={12}
+                        >
+                          {`${name} (${value}%)`}
+                        </text>
+                      );
+                    }}
+                    animationDuration={1500}
+                  >
+                    {formatTimeDistributionForPieChart(
+                      stats.timeDistribution
+                    ).map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                        stroke="none"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(0, 0, 0, 0.8)",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "12px",
+                    }}
+                  />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -282,7 +364,7 @@ const calculateWeeklyActivity = (tracks: SpotifyTrack[]) => {
     const day = new Date(track.played_at).getDay();
     weekDays[day]++;
   });
-  return weekDays; // Return actual counts instead of percentages
+  return weekDays;
 };
 
 const calculateRepeatRate = (tracks: SpotifyTrack[]) => {
