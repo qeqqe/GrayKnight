@@ -1,65 +1,30 @@
 # GrayKnight Music Analytics
 
-A data visualization application that analyzes your Spotify and Last.fm listening history to reveal music preferences, genre trends, and listening patterns through interactive charts and insights.
-
-## Project Overview
-
-This application provides a seamless music tracking experience by allowing users to authenticate with their Last.fm/Spotify account and retrieve their music listening history.
+A comprehensive music analytics dashboard that integrates with Spotify to provide detailed insights into your listening habits through interactive visualizations.
 
 ## Features
 
-- User registration and authentication
-- Secure JWT-based authentication
-- Last.fm/Spotify account connection
-- Music listening data retrieval
+- 🎵 Real-time Spotify integration
+- 📊 Advanced music analytics
+- 📈 Interactive data visualizations
+- 🎧 Playback controls
+- 📱 Device management
+- 📋 Playlist management
+- 📉 Listening statistics
 
 ## Tech Stack
 
-- Backend: Node.js, express
-- ODM: Mongoose
-- Database: MongoDB
-- Authentication:
-  - Local registration
-  - Passport.js for Last.fm/Spotify OAuth
-- Frontend: Next.js (with shadcn)
+- **Frontend**: Next.js, TypeScript, Tailwind CSS, shadcn/ui, Recharts
+- **Backend**: Node.js, Express
+- **Database**: MongoDB
+- **Authentication**: JWT, Spotify OAuth
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js
-- MongoDB
-- Last.fm/Spotify Developer Account
-
-### Installation
-
 1. Clone the repository
-2. Install dependencies
+2. Install dependencies:
    ```bash
    npm install
-   ```
-3. Set up environment variables (check .env.example for all requirements in backend)
-4. Start development server
-   ```bash
-   npm run dev
-   ```
-
-## Authentication Notes
-
-- Passport.js is an authentication middleware for Node.js
-- Supports multiple authentication strategies
-- Free and open-source
-
-## Future Roadmap
-
-- Spotify authentication integration
-- Enhanced music data visualization
-- Cross-platform listening history tracking
-
-## Contributing
-
-Contributions are welcome! Please read the contributing guidelines before getting started though.
-
 ## License
 
 LICENSE.md
@@ -82,9 +47,9 @@ LICENSE.md
 - ✅ User playlists management
   - Playlist viewing
   - Track listing
-  - Infinite scroll for large playlists
+  - Infinite scroll (paginated) for large playlists
 - ✅ Device management and playback control
-- 🔄 User listening statistics (In Progress)
+- ✅ User listening statistics (In Progress)
 
 ### Last.fm Integration (Limited Scope)
 
@@ -132,3 +97,11 @@ LICENSE.md
    - Raw data access
 
 Note: Development is now primarily focused on Spotify integration due to its more comprehensive API capabilities.
+
+
+![Screenshot 2024-12-16 085231](https://github.com/user-attachments/assets/0a6d5d19-aefa-4456-b7a7-3e438f7cbcef)
+![Screenshot 2024-12-16 085312](https://github.com/user-attachments/assets/6c813312-6d79-4301-bca8-875dd5705bc8)
+![Screenshot 2024-12-16 085359](https://github.com/user-attachments/assets/7e18c1ec-c321-48ff-a9e0-e744f8428c80)
+![Screenshot 2024-12-16 085421](https://github.com/user-attachments/assets/d7e5cf4f-7291-44a2-9908-570d0b227f44)
+![Screenshot 2024-12-16 085448](https://github.com/user-attachments/assets/c4ad7cd1-b3b1-4b93-a61d-f34f7fca46b8)
+
